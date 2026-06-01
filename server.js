@@ -478,8 +478,33 @@ function findRecoverablePlayer(room, name) {
   return matches.length === 1 ? matches[0] : null;
 }
 
+function detachSocketFromCurrentRoom(socket) {
+  const code = socket.data.roomCode;
+  if (!code) return;
+  const room = rooms.get(code);
+  if (room) {
+    const player = room.players.find(p => p.id === socket.data.playerId);
+    if (player && player.socketId === socket.id) {
+      player.connected = false;
+      player.socketId = null;
+    }
+    const spectator = (room.spectators || []).find(sp => sp.id === socket.data.spectatorId);
+    if (spectator && spectator.socketId === socket.id) {
+      spectator.connected = false;
+      spectator.socketId = null;
+    }
+    socket.leave(code);
+    emitRoom(room);
+  }
+  socket.data.roomCode = null;
+  socket.data.playerId = null;
+  socket.data.spectatorId = null;
+  socket.data.isSpectator = false;
+}
+
 io.on('connection', (socket) => {
   socket.on('createRoom', ({ name }, cb) => {
+    detachSocketFromCurrentRoom(socket);
     let code = roomCode();
     while (rooms.has(code)) code = roomCode();
     const newPlayerId = randomUUID();

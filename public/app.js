@@ -303,6 +303,41 @@ function clearSavedSession() {
   localStorage.removeItem('machikoroPlayerName');
 }
 
+function setRoomUrl(code) {
+  if (!window.history?.replaceState || !code) return;
+  const url = `${location.pathname}?room=${encodeURIComponent(code)}`;
+  history.replaceState(null, '', url);
+}
+
+function createFreshRoom() {
+  const name = $('nameInput')?.value.trim() || localStorage.getItem('machikoroPlayerName') || 'ゲスト';
+  clearSavedSession();
+  myId = null;
+  socket.emit('createRoom', { name }, (res) => {
+    if (!res?.ok) return showMessage(res?.message || '新しいルームを作成できませんでした。');
+    rememberSession(res.code, res.playerId, name);
+    setRoomUrl(res.code);
+    const input = $('codeInput');
+    if (input) input.value = res.code;
+    showMessage('新しいルームを作成しました。');
+  });
+}
+
+function backToLobbyForNewRoom() {
+  clearSavedSession();
+  myId = null;
+  state = null;
+  lastDiceKey = '';
+  lastWinnerId = null;
+  if (window.history?.replaceState) history.replaceState(null, '', location.pathname);
+  $('game')?.classList.add('hidden');
+  $('lobby')?.classList.remove('hidden');
+  $('roomBadge')?.classList.add('hidden');
+  const codeInput = $('codeInput');
+  if (codeInput) codeInput.value = '';
+  showMessage('新しい部屋を作成できます。');
+}
+
 
 function rollDice(count) {
   if (localRollingCount) return;
@@ -361,12 +396,7 @@ function showMessage(text) {
   });
 }
 
-$('createBtn').onclick = () => {
-  socket.emit('createRoom', { name: $('nameInput').value.trim() || 'ゲスト' }, (res) => {
-    if (!res?.ok) return showMessage(res?.message || 'ルームを作成できませんでした。');
-    rememberSession(res.code, res.playerId, $('nameInput').value.trim() || 'ゲスト');
-  });
-};
+$('createBtn').onclick = () => createFreshRoom();
 $('joinBtn').onclick = () => {
   const code = $('codeInput').value.trim().toUpperCase();
   if (!code) return showMessage('ルームコードを入力してください。');
@@ -609,7 +639,7 @@ function renderStatus() {
   if (state.status === 'finished') {
     const winner = state.players.find(p => p.id === state.winnerId);
     $('statusTitle').textContent = 'ゲーム終了';
-    $('statusText').textContent = 'もう一度遊ぶ場合は新しいルームを作成してください。';
+    $('statusText').textContent = '同じメンバーで再戦するか、新しい部屋を作成できます。';
     if (victoryBanner) {
       victoryBanner.classList.remove('hidden');
       victoryBanner.innerHTML = `<div class="winner-crown">🏆</div><div><strong>${escapeHtml(winner?.name || '不明')} の勝利！</strong><span>すべてのランドマークを完成させました</span></div>`;
@@ -898,8 +928,10 @@ function renderActions() {
     return;
   }
   if (state.status === 'finished') {
-    const hostActions = state.hostId === myId ? '<div class="actions"><button onclick="emitWithMessage(\'resetRoom\')">同じメンバーでもう一度遊ぶ</button></div>' : '<p>ホストが再戦を開始できます。</p>';
-    el.innerHTML = `${resultTableHtml()}${hostActions}`;
+    const hostActions = state.hostId === myId
+      ? '<button onclick="emitWithMessage(\'resetRoom\')">同じメンバーでもう一度遊ぶ</button>'
+      : '<span class="small">同じメンバーの再戦はホストが開始できます。</span>';
+    el.innerHTML = `${resultTableHtml()}<div class="actions wrap">${hostActions}<button class="accent" onclick="createFreshRoom()">新しい部屋を作る</button><button class="secondary" onclick="backToLobbyForNewRoom()">ロビーに戻る</button></div>`;
     return;
   }
   if (state.rolling) {

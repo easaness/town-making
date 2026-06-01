@@ -1,0 +1,66 @@
+:root {
+  --bg: #f7f4ed;
+  --panel: #fffdf8;
+  --ink: #1f2933;
+  --muted: #667085;
+  --line: #e6dfd2;
+  --accent: #e47b37;
+  --accent-dark: #bf5b22;
+  --blue: #d9ecff;
+  --green: #dcfce7;
+  --red: #ffe1e1;
+  --purple: #eee2ff;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0;
+  font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Hiragino Sans", "Yu Gothic", sans-serif;
+  color: var(--ink);
+  background: radial-gradient(circle at top left, #fff7dd, transparent 32rem), var(--bg);
+}
+#app { width: min(1180px, calc(100% - 32px)); margin: 0 auto; padding: 28px 0 48px; }
+.hero {
+  display: flex; justify-content: space-between; align-items: end; gap: 20px;
+  padding: 28px; border-radius: 28px; background: linear-gradient(135deg, #fffaf0, #ffe9ce);
+  border: 1px solid var(--line); box-shadow: 0 18px 50px rgba(48, 36, 21, .08); margin-bottom: 20px;
+}
+.eyebrow { color: var(--accent-dark); font-weight: 800; letter-spacing: .12em; text-transform: uppercase; margin: 0 0 4px; }
+h1 { font-size: clamp(2rem, 5vw, 4rem); line-height: 1; margin: 0 0 10px; }
+h2 { margin: 0 0 14px; }
+h3 { margin: 20px 0 10px; }
+p { margin: 0; color: var(--muted); }
+.panel { background: rgba(255,253,248,.92); border: 1px solid var(--line); border-radius: 22px; padding: 20px; box-shadow: 0 12px 30px rgba(39, 30, 19, .06); margin-bottom: 18px; }
+.grid { display: grid; gap: 18px; }
+.grid.two { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+label { display: grid; gap: 8px; font-weight: 700; }
+input { width: 100%; border: 1px solid var(--line); border-radius: 14px; padding: 13px 14px; font-size: 1rem; background: white; }
+button { border: 0; border-radius: 999px; padding: 12px 18px; font-weight: 800; cursor: pointer; color: white; background: var(--accent); box-shadow: 0 8px 18px rgba(228,123,55,.25); }
+button:hover { background: var(--accent-dark); }
+button.secondary { background: #475467; box-shadow: none; }
+button.accent { font-size: 1rem; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.actions { display: flex; gap: 10px; margin-top: 16px; flex-wrap: wrap; }
+.badge { white-space: nowrap; background: #111827; color: white; padding: 10px 14px; border-radius: 999px; font-weight: 900; }
+.hidden { display: none !important; }
+.message { margin-top: 12px; min-height: 1.4em; color: #b42318; font-weight: 700; }
+.topbar { display: flex; justify-content: space-between; align-items: center; gap: 16px; }
+.player { border: 1px solid var(--line); border-radius: 18px; padding: 14px; margin-bottom: 12px; background: white; }
+.player.current { outline: 3px solid rgba(228,123,55,.3); }
+.player h3 { margin: 0 0 8px; display: flex; justify-content: space-between; gap: 8px; }
+.coins { font-weight: 900; color: var(--accent-dark); }
+.small { color: var(--muted); font-size: .9rem; }
+.tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.tag { background: #f2f4f7; border: 1px solid #eaecf0; border-radius: 999px; padding: 4px 8px; font-size: .85rem; }
+.cards { display: grid; grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 12px; }
+.card { border: 1px solid var(--line); border-radius: 18px; padding: 14px; background: white; display: grid; gap: 8px; }
+.card.blue { background: var(--blue); }
+.card.green { background: var(--green); }
+.card.red { background: var(--red); }
+.card.purple { background: var(--purple); }
+.card h4 { margin: 0; display: flex; justify-content: space-between; gap: 8px; align-items: start; }
+.card p { font-size: .92rem; }
+.card button { width: 100%; padding: 10px 12px; }
+.dice { display: inline-flex; align-items: center; justify-content: center; min-width: 42px; height: 42px; border-radius: 12px; background: white; border: 2px solid var(--line); font-size: 1.4rem; font-weight: 900; margin-right: 6px; }
+.logs { max-height: 280px; overflow: auto; display: flex; flex-direction: column-reverse; gap: 8px; }
+.log { padding: 8px 10px; border-radius: 12px; background: #f9fafb; border: 1px solid #eaecf0; }
+@media (max-width: 800px) { .grid.two, .hero { grid-template-columns: 1fr; display: grid; } .topbar { display: grid; } }

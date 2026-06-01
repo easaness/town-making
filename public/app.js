@@ -5,6 +5,7 @@ let lastDiceKey = '';
 let diceJustChanged = false;
 let localRollingCount = 0;
 let rollingTimer = null;
+let hostSkipArmed = false;
 let rollingPreviewValues = [];
 let rollingNonce = 0;
 let lastCoinEventId = null;
@@ -501,6 +502,7 @@ function render() {
   renderActions();
   renderBuilds();
   renderLogs();
+  renderHostAdmin();
 }
 
 function renderStatus() {
@@ -585,8 +587,50 @@ function renderRecentNotice() {
 }
 
 function hostControlHtml() {
-  if (state?.hostId !== myId || state.status !== 'playing') return '';
-  return `<div class="host-controls"><button class="secondary danger" onclick="emitWithMessage('hostForceSkip')">ホスト: 現在の手番をスキップ</button></div>`;
+  return '';
+}
+
+function renderHostAdmin() {
+  const panel = $('hostAdminPanel');
+  const body = $('hostAdminBody');
+  if (!panel || !body) return;
+  const visible = state?.hostId === myId && state.status === 'playing';
+  panel.classList.toggle('hidden', !visible);
+  if (!visible) {
+    hostSkipArmed = false;
+    body.innerHTML = '';
+    return;
+  }
+  const cp = currentPlayer();
+  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', purple: '紫カード選択', build: '建設' }[state.phase] || state.phase;
+  body.innerHTML = `
+    <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
+    <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
+    ${hostSkipArmed ? `
+      <div class="admin-confirm">
+        <p>本当に現在の手番をスキップしますか？</p>
+        <div class="actions">
+          <button class="danger" onclick="confirmHostForceSkip()">スキップを実行</button>
+          <button class="secondary" onclick="cancelHostForceSkip()">キャンセル</button>
+        </div>
+      </div>` : `
+      <button class="secondary danger outline-danger" onclick="armHostForceSkip()">強制スキップを開く</button>`}
+  `;
+}
+
+function armHostForceSkip() {
+  hostSkipArmed = true;
+  renderHostAdmin();
+}
+
+function cancelHostForceSkip() {
+  hostSkipArmed = false;
+  renderHostAdmin();
+}
+
+function confirmHostForceSkip() {
+  hostSkipArmed = false;
+  emitWithMessage('hostForceSkip');
 }
 
 function renderPlayers() {

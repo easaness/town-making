@@ -670,3 +670,41 @@ button.secondary.danger:hover { background: #881337; }
 @media (prefers-reduced-motion: reduce) {
   .recent-notice { animation: none; }
 }
+
+/* Host admin is intentionally separated from normal turn actions. */
+.host-admin {
+  border: 2px dashed #fecdd3;
+  background: #fff7f8;
+}
+.host-admin summary {
+  cursor: pointer;
+  font-weight: 1000;
+  color: #9f1239;
+  user-select: none;
+}
+.host-admin-body {
+  margin-top: 12px;
+  display: grid;
+  gap: 10px;
+}
+.admin-status {
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.8);
+  border: 1px solid #ffe4e6;
+}
+.admin-confirm {
+  padding: 12px;
+  border-radius: 16px;
+  background: #fff1f2;
+  border: 1px solid #fda4af;
+}
+.outline-danger {
+  background: #fff;
+  color: #9f1239;
+  border: 1px solid #fb7185;
+}
+.outline-danger:hover {
+  background: #fff1f2;
+  color: #881337;
+}

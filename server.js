@@ -103,6 +103,7 @@ function publicRoom(room) {
     winnerId: room.winnerId,
     logs: room.logs.slice(-60),
     coinEvents: (room.coinEvents || []).slice(-30),
+    specialEvents: (room.specialEvents || []).slice(-20),
     cards: CARD_DEFS,
     landmarks: LANDMARKS
   };
@@ -114,6 +115,19 @@ function emitRoom(room) {
 
 function log(room, text) {
   room.logs.push({ at: new Date().toISOString(), text });
+}
+
+function specialEvent(room, type, player, label) {
+  if (!room.specialEvents) room.specialEvents = [];
+  room.eventSeq = (room.eventSeq || 0) + 1;
+  room.specialEvents.push({
+    id: room.eventSeq,
+    type,
+    playerId: player.id,
+    playerName: player.name,
+    label
+  });
+  room.specialEvents = room.specialEvents.slice(-30);
 }
 
 function coinEvent(room, player, amount, type, label) {
@@ -251,7 +265,10 @@ function resolveRoll(room, diceValues) {
   }
 
   room.pendingExtraTurn = diceValues.length === 2 && diceValues[0] === diceValues[1] && has(roller, 'amusement');
-  if (room.pendingExtraTurn) log(room, `${roller.name} は遊園地効果で追加ターンを得ます。`);
+  if (room.pendingExtraTurn) {
+    log(room, `${roller.name} は遊園地効果で追加ターンを得ます。`);
+    specialEvent(room, 'amusement-earned', roller, '遊園地発動');
+  }
   if (purpleQueue.length) {
     room.pendingPurple = { playerId: roller.id, effects: purpleQueue, current: purpleQueue[0] };
     room.phase = 'purple';
@@ -290,6 +307,8 @@ function finishCurrentPurple(room) {
 
 function advanceTurn(room) {
   if (room.pendingExtraTurn) {
+    const player = room.players[room.currentPlayerIndex];
+    if (player) specialEvent(room, 'amusement-start', player, '追加ターン開始');
     room.pendingExtraTurn = false;
   } else {
     room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
@@ -335,6 +354,7 @@ io.on('connection', (socket) => {
       winnerId: null,
       logs: [],
       coinEvents: [],
+      specialEvents: [],
       eventSeq: 0
     };
     rooms.set(code, room);

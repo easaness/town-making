@@ -14,7 +14,11 @@
         <h1>街コロオンライン</h1>
         <p>友人とURL・ルームコードで遊べるリアルタイム対戦版です。</p>
       </div>
-      <div id="roomBadge" class="badge hidden"></div>
+      <div id="roomBadge" class="badge room-badge hidden">
+        <span id="roomCodeText"></span>
+        <button id="copyRoomCodeBtn" type="button" class="copy-code-btn">コピー</button>
+        <button id="soundToggleBtn" type="button" class="copy-code-btn sound-toggle">効果音 ON</button>
+      </div>
     </header>
 
     <section id="lobby" class="panel">
@@ -39,6 +43,8 @@
         <div>
           <h2 id="statusTitle">待機中</h2>
           <p id="statusText"></p>
+          <div id="turnBanner" class="turn-banner hidden"></div>
+          <div id="victoryBanner" class="victory-banner hidden"></div>
           <p id="gameMsg" class="message"></p>
         </div>
         <button id="startBtn" class="accent hidden">ゲーム開始</button>

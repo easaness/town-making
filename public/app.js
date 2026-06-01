@@ -9,6 +9,13 @@ let rollingPreviewValues = [];
 let rollingNonce = 0;
 let lastCoinEventId = null;
 let activeCoinFx = [];
+let lastSpecialEventId = null;
+let activeSpecialFx = [];
+let lastRollingNonce = null;
+let lastWinnerId = null;
+let lastTurnPlayerId = null;
+let audioCtx = null;
+let soundEnabled = true;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
@@ -16,9 +23,11 @@ const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
 socket.on('connect', () => { myId = socket.id; });
 socket.on('state', (next) => {
   syncCoinEvents(next);
+  syncSpecialEvents(next);
   const nextKey = diceStateKey(next);
   diceJustChanged = Boolean(nextKey && nextKey !== lastDiceKey);
   lastDiceKey = nextKey;
+  handleStateEffects(next);
   state = next;
   if (state?.rolling) {
     startRollingPreview(state.rolling.diceCount);
@@ -26,6 +35,7 @@ socket.on('state', (next) => {
     stopLocalRoll();
   }
   render();
+  if (diceJustChanged) playSound('result');
   if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); }, 900);
 });
 
@@ -43,6 +53,8 @@ function syncCoinEvents(next) {
     return;
   }
   const now = Date.now();
+  if (fresh.some(ev => ev.type === 'steal' || ev.type === 'stolen')) playSound('steal');
+  else if (fresh.length) playSound('income');
   activeCoinFx.push(...fresh.map((ev, index) => ({
     ...ev,
     uid: `${ev.id}-${index}-${now}`,
@@ -68,6 +80,124 @@ function coinFxHtml(playerId) {
     const label = fx.label ? `<small>${escapeHtml(fx.label)}</small>` : '';
     return `<span class="coin-fx ${cls}" style="--fx-offset:${i}">${sign}${fx.amount}🪙${label}</span>`;
   }).join('')}</div>`;
+}
+
+function syncSpecialEvents(next) {
+  const events = next?.specialEvents || [];
+  const maxId = events.reduce((max, ev) => Math.max(max, ev.id || 0), 0);
+  if (lastSpecialEventId === null) {
+    lastSpecialEventId = maxId;
+    return;
+  }
+  const fresh = events.filter(ev => (ev.id || 0) > lastSpecialEventId);
+  if (!fresh.length) {
+    lastSpecialEventId = Math.max(lastSpecialEventId, maxId);
+    return;
+  }
+  const now = Date.now();
+  const amusement = fresh.filter(ev => String(ev.type || '').startsWith('amusement'));
+  if (amusement.length) playSound('amusement');
+  activeSpecialFx.push(...amusement.map((ev, index) => ({
+    ...ev,
+    uid: `special-${ev.id}-${index}-${now}`,
+    createdAt: now,
+    expiresAt: now + 2800
+  })));
+  lastSpecialEventId = Math.max(lastSpecialEventId, maxId);
+  setTimeout(() => {
+    const t = Date.now();
+    activeSpecialFx = activeSpecialFx.filter(fx => fx.expiresAt > t);
+    if (state) renderStatus();
+  }, 2900);
+}
+
+function activeSpecialNotice() {
+  const now = Date.now();
+  const items = activeSpecialFx.filter(fx => fx.expiresAt > now);
+  return items.length ? items[items.length - 1] : null;
+}
+
+
+function unlockAudio() {
+  if (!audioCtx) {
+    const Ctx = window.AudioContext || window.webkitAudioContext;
+    if (!Ctx) return;
+    audioCtx = new Ctx();
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume().catch(() => {});
+}
+
+document.addEventListener('pointerdown', unlockAudio, { passive: true });
+
+function playTone(freq, start, duration, type = 'sine', gain = 0.045) {
+  if (!soundEnabled || !audioCtx) return;
+  const t0 = audioCtx.currentTime + start;
+  const osc = audioCtx.createOscillator();
+  const g = audioCtx.createGain();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freq, t0);
+  g.gain.setValueAtTime(0.0001, t0);
+  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.018);
+  g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
+  osc.connect(g).connect(audioCtx.destination);
+  osc.start(t0);
+  osc.stop(t0 + duration + 0.03);
+}
+
+function playSound(kind) {
+  if (!soundEnabled) return;
+  unlockAudio();
+  if (!audioCtx) return;
+  if (kind === 'roll') {
+    [160, 210, 180, 260, 220].forEach((f, i) => playTone(f, i * 0.055, 0.07, 'triangle', 0.035));
+  } else if (kind === 'result') {
+    playTone(520, 0, 0.08, 'triangle', 0.04);
+    playTone(720, 0.08, 0.11, 'sine', 0.04);
+  } else if (kind === 'income') {
+    playTone(660, 0, 0.08, 'sine', 0.035);
+    playTone(880, 0.08, 0.12, 'sine', 0.035);
+  } else if (kind === 'steal') {
+    playTone(300, 0, 0.08, 'sawtooth', 0.025);
+    playTone(520, 0.07, 0.12, 'triangle', 0.035);
+  } else if (kind === 'turn') {
+    playTone(440, 0, 0.08, 'triangle', 0.032);
+    playTone(660, 0.09, 0.12, 'triangle', 0.032);
+  } else if (kind === 'win') {
+    [523, 659, 784, 1046].forEach((f, i) => playTone(f, i * 0.105, 0.16, 'triangle', 0.04));
+  } else if (kind === 'amusement') {
+    [392, 523, 659, 784].forEach((f, i) => playTone(f, i * 0.075, 0.12, 'square', 0.025));
+  } else if (kind === 'click') {
+    playTone(420, 0, 0.04, 'triangle', 0.025);
+  }
+}
+
+function toggleSound() {
+  unlockAudio();
+  soundEnabled = !soundEnabled;
+  const btn = $('soundToggleBtn');
+  if (btn) btn.textContent = soundEnabled ? '効果音 ON' : '効果音 OFF';
+  showMessage(soundEnabled ? '効果音をONにしました。' : '効果音をOFFにしました。');
+  if (soundEnabled) playSound('click');
+}
+
+function handleStateEffects(next) {
+  if (next?.rolling?.nonce && next.rolling.nonce !== lastRollingNonce) {
+    lastRollingNonce = next.rolling.nonce;
+    playSound('roll');
+  }
+  if (!next?.rolling) lastRollingNonce = null;
+
+  if (next?.status === 'finished' && next.winnerId && next.winnerId !== lastWinnerId) {
+    lastWinnerId = next.winnerId;
+    playSound('win');
+  }
+
+  const current = next?.players?.[next.currentPlayerIndex];
+  if (next?.status === 'playing' && current?.id !== lastTurnPlayerId) {
+    const wasInitialized = lastTurnPlayerId !== null;
+    lastTurnPlayerId = current?.id || null;
+    if (wasInitialized && current?.id === myId) playSound('turn');
+  }
 }
 
 function emitWithMessage(event, payload = {}) {
@@ -143,6 +273,27 @@ $('joinBtn').onclick = () => {
   emitWithMessage('joinRoom', { code, name: $('nameInput').value.trim() || 'ゲスト' });
 };
 $('startBtn').onclick = () => emitWithMessage('startGame');
+$('copyRoomCodeBtn').onclick = copyRoomCode;
+$('soundToggleBtn').onclick = toggleSound;
+
+async function copyRoomCode() {
+  if (!state?.code) return showMessage('コピーできるルームコードがありません。');
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(state.code);
+    } else {
+      const input = document.createElement('input');
+      input.value = state.code;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    showMessage(`ルームコード ${state.code} をコピーしました。`);
+  } catch (err) {
+    showMessage(`コピーできませんでした。コード: ${state.code}`);
+  }
+}
 
 
 function diceStateKey(next) {
@@ -225,7 +376,7 @@ function render() {
   $('lobby').classList.add('hidden');
   $('game').classList.remove('hidden');
   $('roomBadge').classList.remove('hidden');
-  $('roomBadge').textContent = `Room ${state.code}`;
+  $('roomCodeText').textContent = `Room ${state.code}`;
 
   renderStatus();
   renderPlayers();
@@ -237,6 +388,13 @@ function render() {
 function renderStatus() {
   const cp = currentPlayer();
   const m = me();
+  const turnBanner = $('turnBanner');
+  const victoryBanner = $('victoryBanner');
+  if (turnBanner) {
+    turnBanner.classList.add('hidden');
+    turnBanner.classList.remove('amusement');
+  }
+  if (victoryBanner) victoryBanner.classList.add('hidden');
   $('startBtn').classList.toggle('hidden', !(state.status === 'waiting' && state.hostId === myId));
   if (state.status === 'waiting') {
     $('statusTitle').textContent = '待機中';
@@ -245,11 +403,36 @@ function renderStatus() {
   }
   if (state.status === 'finished') {
     const winner = state.players.find(p => p.id === state.winnerId);
-    $('statusTitle').textContent = `勝者: ${winner?.name || '不明'}`;
-    $('statusText').textContent = 'ゲーム終了です。もう一度遊ぶ場合は新しいルームを作成してください。';
+    $('statusTitle').textContent = 'ゲーム終了';
+    $('statusText').textContent = 'もう一度遊ぶ場合は新しいルームを作成してください。';
+    if (victoryBanner) {
+      victoryBanner.classList.remove('hidden');
+      victoryBanner.innerHTML = `<div class="winner-crown">🏆</div><div><strong>${escapeHtml(winner?.name || '不明')} の勝利！</strong><span>すべてのランドマークを完成させました</span></div>`;
+    }
     return;
   }
-  $('statusTitle').textContent = isMyTurn() ? 'あなたの手番です' : `${cp?.name} の手番`;
+  const myTurnNow = isMyTurn();
+  $('statusTitle').textContent = myTurnNow ? 'あなたの番です' : `${cp?.name} の番です`;
+  const special = activeSpecialNotice();
+  if (turnBanner && special) {
+    const isMine = special.playerId === myId;
+    turnBanner.classList.remove('hidden');
+    turnBanner.classList.add('amusement');
+    const title = special.type === 'amusement-start'
+      ? (isMine ? '🎢 遊園地発動！もう一度あなたの番です' : `🎢 ${escapeHtml(special.playerName || 'プレイヤー')} が追加ターンです`)
+      : (isMine ? '🎢 遊園地発動！追加ターン獲得' : `🎢 ${escapeHtml(special.playerName || 'プレイヤー')} が追加ターンを獲得`);
+    const body = special.type === 'amusement-start' ? '続けてダイスを振れます。' : '建設またはスキップ後、同じプレイヤーがもう一度行動します。';
+    turnBanner.innerHTML = `<strong>${title}</strong><span>${body}</span>`;
+  } else if (turnBanner && state.pendingExtraTurn) {
+    turnBanner.classList.remove('hidden');
+    turnBanner.classList.add('amusement');
+    turnBanner.innerHTML = myTurnNow
+      ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
+      : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
+  } else if (turnBanner && myTurnNow) {
+    turnBanner.classList.remove('hidden');
+    turnBanner.innerHTML = '<strong>あなたの番です</strong><span>ダイス・選択・建設を進めてください</span>';
+  }
   const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
@@ -274,7 +457,10 @@ function renderPlayers() {
       }).join('') || '<div class="small empty-owned">建築済み施設はまだありません。</div>';
     const landmarks = Object.entries(p.landmarks)
       .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id].text)}">${done ? '✅' : '⬜'} ${state.landmarks[id].name}</span>`).join('');
-    return `<div class="player ${idx === state.currentPlayerIndex ? 'current' : ''}">
+    const playerClasses = ['player', idx === state.currentPlayerIndex ? 'current' : '', p.id === myId ? 'me-player' : ''].filter(Boolean).join(' ');
+    const turnLabel = idx === state.currentPlayerIndex ? `<div class="turn-chip ${p.id === myId ? 'mine' : ''}">${p.id === myId ? 'あなたの番' : '現在の番'}</div>` : '';
+    return `<div class="${playerClasses}">
+      ${turnLabel}
       ${coinFxHtml(p.id)}
       <h3><span>${escapeHtml(p.name)} ${p.connected ? '' : '（切断）'}</span><span class="coins">${p.coins}🪙</span></h3>
       <div class="small">${idx + 1}番手</div>

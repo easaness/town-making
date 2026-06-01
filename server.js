@@ -269,7 +269,7 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('startGame', (cb) => {
+  socket.on('startGame', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
     if (socket.id !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
@@ -301,7 +301,7 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('acceptRoll', (cb) => {
+  socket.on('acceptRoll', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'reroll' || !room.pendingRoll) return;
     const player = getCurrentPlayer(room);
@@ -314,7 +314,7 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('rerollDice', (cb) => {
+  socket.on('rerollDice', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'reroll' || !room.pendingRoll || !room.canReroll) return;
     const player = getCurrentPlayer(room);
@@ -365,7 +365,7 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('skipBuild', (cb) => {
+  socket.on('skipBuild', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);

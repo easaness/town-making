@@ -19,6 +19,7 @@
         <button id="copyRoomCodeBtn" type="button" class="copy-code-btn">コードコピー</button>
         <button id="copyInviteBtn" type="button" class="copy-code-btn">招待リンク</button>
         <button id="soundToggleBtn" type="button" class="copy-code-btn sound-toggle">効果音 ON</button>
+        <label class="volume-control">音量 <input id="volumeSlider" type="range" min="0" max="100" value="70" /></label>
       </div>
     </header>
 
@@ -47,6 +48,7 @@
           <div id="turnBanner" class="turn-banner hidden"></div>
           <div id="victoryBanner" class="victory-banner hidden"></div>
           <p id="gameMsg" class="message"></p>
+          <div id="recentNotice" class="recent-notice hidden"></div>
         </div>
         <button id="startBtn" class="accent hidden">ゲーム開始</button>
       </section>
@@ -70,7 +72,7 @@
         <div id="cards" class="cards"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel logs-panel">
         <h2>ログ</h2>
         <div id="logs" class="logs"></div>
       </section>

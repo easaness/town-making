@@ -16,6 +16,7 @@ let lastWinnerId = null;
 let lastTurnPlayerId = null;
 let audioCtx = null;
 let soundEnabled = true;
+let masterVolume = Number(localStorage.getItem('machikoroVolume') || 70) / 100;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
@@ -115,20 +116,21 @@ function syncSpecialEvents(next) {
     return;
   }
   const now = Date.now();
-  const amusement = fresh.filter(ev => String(ev.type || '').startsWith('amusement'));
-  if (amusement.length) playSound('amusement');
-  activeSpecialFx.push(...amusement.map((ev, index) => ({
+  if (fresh.some(ev => String(ev.type || '').startsWith('amusement'))) playSound('amusement');
+  else if (fresh.some(ev => String(ev.type || '').includes('steal'))) playSound('steal');
+  else if (fresh.some(ev => String(ev.type || '').includes('income') || String(ev.type || '').includes('market'))) playSound('income');
+  activeSpecialFx.push(...fresh.map((ev, index) => ({
     ...ev,
     uid: `special-${ev.id}-${index}-${now}`,
     createdAt: now,
-    expiresAt: now + 2800
+    expiresAt: now + 3600
   })));
   lastSpecialEventId = Math.max(lastSpecialEventId, maxId);
   setTimeout(() => {
     const t = Date.now();
     activeSpecialFx = activeSpecialFx.filter(fx => fx.expiresAt > t);
-    if (state) renderStatus();
-  }, 2900);
+    if (state) { renderStatus(); renderRecentNotice(); }
+  }, 3700);
 }
 
 function activeSpecialNotice() {
@@ -157,7 +159,7 @@ function playTone(freq, start, duration, type = 'sine', gain = 0.045) {
   osc.type = type;
   osc.frequency.setValueAtTime(freq, t0);
   g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(gain, t0 + 0.018);
+  g.gain.exponentialRampToValueAtTime(gain * masterVolume, t0 + 0.018);
   g.gain.exponentialRampToValueAtTime(0.0001, t0 + duration);
   osc.connect(g).connect(audioCtx.destination);
   osc.start(t0);
@@ -307,13 +309,27 @@ $('joinBtn').onclick = () => {
   if (!code) return showMessage('ルームコードを入力してください。');
   socket.emit('joinRoom', { code, name: $('nameInput').value.trim() || 'ゲスト' }, (res) => {
     if (!res?.ok) return showMessage(res?.message || '参加できませんでした。');
-    rememberSession(res.code, res.playerId);
+    if (res.spectator) {
+      myId = null;
+      localStorage.setItem('machikoroRoomCode', res.code);
+      localStorage.removeItem('machikoroPlayerId');
+      showMessage('観戦者として参加しました。');
+    } else {
+      rememberSession(res.code, res.playerId);
+    }
   });
 };
 $('startBtn').onclick = () => emitWithMessage('startGame');
 $('copyRoomCodeBtn').onclick = copyRoomCode;
 $('copyInviteBtn').onclick = copyInviteLink;
 $('soundToggleBtn').onclick = toggleSound;
+if ($('volumeSlider')) {
+  $('volumeSlider').value = Math.round(masterVolume * 100);
+  $('volumeSlider').oninput = (e) => {
+    masterVolume = Number(e.target.value || 70) / 100;
+    localStorage.setItem('machikoroVolume', String(Math.round(masterVolume * 100)));
+  };
+}
 
 async function copyRoomCode() {
   if (!state?.code) return showMessage('コピーできるルームコードがありません。');
@@ -359,6 +375,7 @@ function phaseGuideText() {
   if (!state) return '';
   const cp = currentPlayer();
   const mine = isMyTurn();
+  if (!me() && state.status === 'playing') return `${cp?.name || 'プレイヤー'} の番です。観戦中です。`;
   if (state.status === 'waiting') return state.hostId === myId ? 'ゲーム開始を押してください。友人を待つ場合はルームコードか招待リンクを共有してください。' : 'ホストがゲームを開始するまで待機してください。';
   if (state.status === 'finished') return state.winnerId === myId ? 'あなたの勝利です。ホストは同じメンバーでもう一度遊べます。' : 'ゲーム終了です。ホストがもう一度遊ぶを押すと同じ部屋で再戦できます。';
   if (state.rolling) return `${state.rolling.playerName || 'プレイヤー'} がダイスを振っています。結果を待ってください。`;
@@ -538,7 +555,38 @@ function renderStatus() {
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
-  $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText} / あなた: ${m?.coins ?? 0} コイン${marketText}`)}</span>`;
+  const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
+  const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
+  $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}`)}</span>`;
+  renderRecentNotice();
+}
+
+
+function latestNoticeEvent() {
+  const live = activeSpecialFx.filter(fx => fx.expiresAt > Date.now());
+  if (live.length) return live[live.length - 1];
+  const events = state?.specialEvents || [];
+  return events.length ? events[events.length - 1] : null;
+}
+
+function renderRecentNotice() {
+  const el = $('recentNotice');
+  if (!el || !state || state.status === 'waiting') return;
+  const ev = latestNoticeEvent();
+  if (!ev?.label || state.status === 'finished') {
+    el.classList.add('hidden');
+    return;
+  }
+  const type = String(ev.type || '');
+  const icon = type.includes('market') ? '🃏' : type.includes('steal') ? '💸' : type.includes('income') ? '🪙' : type.includes('host') ? '⏭️' : type.includes('amusement') ? '🎢' : '✨';
+  const title = type.includes('market') ? '市場補充' : type.includes('host') ? 'ホスト操作' : type.includes('amusement') ? '遊園地' : '直近の効果';
+  el.className = `recent-notice ${type.includes('market') ? 'market' : type.includes('host') ? 'host' : ''}`;
+  el.innerHTML = `<strong>${icon} ${title}</strong><span>${escapeHtml(ev.label)}</span>`;
+}
+
+function hostControlHtml() {
+  if (state?.hostId !== myId || state.status !== 'playing') return '';
+  return `<div class="host-controls"><button class="secondary danger" onclick="emitWithMessage('hostForceSkip')">ホスト: 現在の手番をスキップ</button></div>`;
 }
 
 function renderPlayers() {
@@ -637,14 +685,19 @@ function renderActions() {
     const label = state.rolling.mode === 'reroll' ? '振り直し中' : 'ダイス';
     el.innerHTML = `
       <div class="dice-stage rolling-live"><div class="dice-label">${label}</div><div class="dice-row rolling-row">${previewDice}</div></div>
-      <p>${name} がダイスを振っています。</p>`;
+      <p>${name} がダイスを振っています。</p>${hostControlHtml()}`;
     return;
   }
   if (state.phase === 'purple') {
     const effect = state.pendingPurple?.current;
+    if (!me()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>観戦中です。${escapeHtml(cp?.name || 'プレイヤー')} が紫カードの対象を選んでいます。</p>`;
+      return;
+    }
     if (!isMyTurn()) {
       const cp = currentPlayer();
-      el.innerHTML = `<p>${escapeHtml(cp?.name || 'プレイヤー')} が紫カードの対象を選んでいます。</p>`;
+      el.innerHTML = `<p>${escapeHtml(cp?.name || 'プレイヤー')} が紫カードの対象を選んでいます。</p>${hostControlHtml()}`;
       return;
     }
     if (effect === 'tv') {
@@ -656,16 +709,20 @@ function renderActions() {
             ${targets.map(p => `<button onclick="emitWithMessage('purpleTv', { targetId: '${p.id}' })">${escapeHtml(p.name)}（${p.coins}🪙）</button>`).join('')}
             <button class="secondary" onclick="emitWithMessage('skipPurple')">使わない</button>
           </div>
-        </div>`;
+        </div>${hostControlHtml()}`;
       return;
     }
     if (effect === 'business') {
-      el.innerHTML = businessChoiceHtml();
+      el.innerHTML = businessChoiceHtml() + hostControlHtml();
       return;
     }
   }
+  if (!me()) {
+    el.innerHTML = `<p>観戦中です。プレイヤーの操作を見守っています。</p>`;
+    return;
+  }
   if (!isMyTurn()) {
-    el.innerHTML = '<p>他のプレイヤーの操作を待っています。</p>';
+    el.innerHTML = `<p>他のプレイヤーの操作を待っています。</p>${hostControlHtml()}`;
     return;
   }
   const m = me();
@@ -674,7 +731,7 @@ function renderActions() {
     if (localRollingCount) {
       const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
       el.innerHTML = `
-        <div class="dice-stage rolling-live"><div class="dice-label">ダイス</div><div class="dice-row rolling-row">${previewDice}</div></div>`;
+        <div class="dice-stage rolling-live"><div class="dice-label">ダイス</div><div class="dice-row rolling-row">${previewDice}</div></div>${hostControlHtml()}`;
       return;
     }
     el.innerHTML = `
@@ -683,14 +740,14 @@ function renderActions() {
       <div class="actions">
         <button onclick="rollDice(1)">1個振る</button>
         <button ${canTwo ? '' : 'disabled'} onclick="rollDice(2)">2個振る（駅）</button>
-      </div>`;
+      </div>${hostControlHtml()}`;
     return;
   }
   if (state.phase === 'reroll') {
     if (localRollingCount) {
       const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
       el.innerHTML = `
-        <div class="dice-stage rolling-live"><div class="dice-label">振り直し中</div><div class="dice-row rolling-row">${previewDice}</div></div>`;
+        <div class="dice-stage rolling-live"><div class="dice-label">振り直し中</div><div class="dice-row rolling-row">${previewDice}</div></div>${hostControlHtml()}`;
       return;
     }
     const dice = diceTray(state.pendingRoll, '電波塔の出目');
@@ -700,7 +757,7 @@ function renderActions() {
       <div class="actions">
         <button onclick="emitWithMessage('acceptRoll')">この出目で進める</button>
         <button class="secondary" onclick="rerollDice()">振り直す</button>
-      </div>`;
+      </div>${hostControlHtml()}`;
     return;
   }
   const dice = diceTray(state.lastRoll, '今回の出目');
@@ -709,7 +766,7 @@ function renderActions() {
     <p>1件だけ建設するか、建設せずに終了できます。</p>
     <div class="actions">
       <button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>
-    </div>`;
+    </div>${hostControlHtml()}`;
 }
 
 function renderBuilds() {
@@ -743,11 +800,9 @@ function renderBuilds() {
     const reason = buildDisableReason(card, owned, affordable, canBuild);
     const buildDisabled = Boolean(reason);
     const buttonText = reason || '建設';
-    const triggered = isTriggeredCard(card);
-    return `<article class="card ${card.color} ${triggered ? 'triggered' : ''}">
+    return `<article class="card ${card.color}">
       <h4>${card.name}<span>${card.cost}🪙</span></h4>
       <div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div>
-      ${triggered ? '<div class="triggered-label">今回の出目で発動</div>' : ''}
       <p>${cardDescription(id, card)}</p>
       <p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p>
       <button ${buildDisabled ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${buttonText}</button>

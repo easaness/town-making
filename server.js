@@ -56,6 +56,8 @@ function normalizeLoadedRoom(room) {
   room.deck = Array.isArray(room.deck) ? room.deck : [];
   room.market = room.market || {};
   room.eventSeq = Number(room.eventSeq || 0);
+  room.spectators = Array.isArray(room.spectators) ? room.spectators.map(sp => ({ ...sp, socketId: null, connected: false })) : [];
+  room.lastUpdatedAt = room.lastUpdatedAt || Date.now();
   return room;
 }
 
@@ -183,6 +185,8 @@ function publicRoom(room) {
     code: room.code,
     hostId: room.hostId,
     status: room.status,
+    spectators: room.spectators || [],
+    spectatorCount: (room.spectators || []).filter(sp => sp.connected).length,
     players: room.players.map(({ socketId, ...player }) => player),
     currentPlayerIndex: room.currentPlayerIndex,
     market: room.market,
@@ -199,11 +203,13 @@ function publicRoom(room) {
     coinEvents: (room.coinEvents || []).slice(-30),
     specialEvents: (room.specialEvents || []).slice(-20),
     cards: CARD_DEFS,
-    landmarks: LANDMARKS
+    landmarks: LANDMARKS,
+    lastUpdatedAt: room.lastUpdatedAt || Date.now()
   };
 }
 
 function emitRoom(room) {
+  room.lastUpdatedAt = Date.now();
   scheduleSaveRooms();
   io.to(room.code).emit('state', publicRoom(room));
 }
@@ -212,17 +218,18 @@ function log(room, text) {
   room.logs.push({ at: new Date().toISOString(), text });
 }
 
-function specialEvent(room, type, player, label) {
+function specialEvent(room, type, player, label, extra = {}) {
   if (!room.specialEvents) room.specialEvents = [];
   room.eventSeq = (room.eventSeq || 0) + 1;
   room.specialEvents.push({
     id: room.eventSeq,
     type,
-    playerId: player.id,
-    playerName: player.name,
-    label
+    playerId: player?.id || null,
+    playerName: player?.name || '',
+    label,
+    ...extra
   });
-  room.specialEvents = room.specialEvents.slice(-30);
+  room.specialEvents = room.specialEvents.slice(-40);
 }
 
 function coinEvent(room, player, amount, type, label) {
@@ -307,7 +314,11 @@ function resolveRoll(room, diceValues) {
       const base = cardId === 'cafe' ? 1 : 2;
       const each = applyMallBonus(owner, cardId, base);
       const paid = stealCoins(room, roller, owner, each * c, CARD_DEFS[cardId].name);
-      if (paid > 0) log(room, `${owner.name} の${CARD_DEFS[cardId].name}：${roller.name} から ${paid} コイン。`);
+      if (paid > 0) {
+        const text = `${owner.name} の${CARD_DEFS[cardId].name}：${roller.name} から ${paid} コイン。`;
+        log(room, text);
+        specialEvent(room, 'effect-steal', owner, text, { cardId, amount: paid, targetId: roller.id });
+      }
       if (roller.coins === 0) break;
     }
   }
@@ -322,7 +333,9 @@ function resolveRoll(room, diceValues) {
       if (c && CARD_DEFS[cardId].dice.includes(total)) {
         const amount = base * c;
         bankIncome(room, p, amount, CARD_DEFS[cardId].name);
-        log(room, `${p.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`);
+        const text = `${p.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`;
+        log(room, text);
+        specialEvent(room, 'effect-income', p, text, { cardId, amount });
       }
     }
   }
@@ -340,7 +353,9 @@ function resolveRoll(room, diceValues) {
     if (cardId === 'market') amount = 2 * (count(roller, 'wheat') + count(roller, 'apple')) * c;
     if (amount > 0) {
       bankIncome(room, roller, amount, CARD_DEFS[cardId].name);
-      log(room, `${roller.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`);
+      const text = `${roller.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`;
+      log(room, text);
+      specialEvent(room, 'effect-income', roller, text, { cardId, amount });
     }
   }
 
@@ -352,7 +367,11 @@ function resolveRoll(room, diceValues) {
         if (i === rollerIndex) continue;
         const other = room.players[i];
         const paid = stealCoins(room, other, roller, 2, 'スタジアム');
-        if (paid > 0) log(room, `${roller.name} のスタジアム：${other.name} から ${paid} コイン。`);
+        if (paid > 0) {
+          const text = `${roller.name} のスタジアム：${other.name} から ${paid} コイン。`;
+          log(room, text);
+          specialEvent(room, 'effect-steal', roller, text, { cardId: 'stadium', amount: paid, targetId: other.id });
+        }
       }
     }
     if (count(roller, 'tv') && room.players.some((_, i) => i !== rollerIndex)) purpleQueue.push('tv');
@@ -451,7 +470,9 @@ io.on('connection', (socket) => {
       logs: [],
       coinEvents: [],
       specialEvents: [],
-      eventSeq: 0
+      eventSeq: 0,
+      spectators: [],
+      lastUpdatedAt: Date.now()
     };
     rooms.set(code, room);
     socket.join(code);
@@ -480,7 +501,20 @@ io.on('connection', (socket) => {
   socket.on('joinRoom', ({ code, name }, cb) => {
     const room = rooms.get((code || '').toUpperCase());
     if (!room) return cb?.({ ok: false, message: 'ルームが見つかりません。' });
-    if (room.status !== 'waiting') return cb?.({ ok: false, message: '開始済みのルームです。' });
+    if (room.status !== 'waiting') {
+      const spectatorId = randomUUID();
+      const spectator = { id: spectatorId, socketId: socket.id, name: (name || '観戦者').slice(0, 18), connected: true };
+      room.spectators = room.spectators || [];
+      room.spectators.push(spectator);
+      socket.join(room.code);
+      socket.data.roomCode = room.code;
+      socket.data.spectatorId = spectatorId;
+      socket.data.isSpectator = true;
+      log(room, `${spectator.name} が観戦に入りました。`);
+      cb?.({ ok: true, code: room.code, spectator: true, spectatorId });
+      emitRoom(room);
+      return;
+    }
     if (room.players.length >= 4) return cb?.({ ok: false, message: 'このルームは満員です。' });
     const playerId = randomUUID();
     const player = makePlayer(playerId, name, socket.id);
@@ -504,6 +538,13 @@ io.on('connection', (socket) => {
     room.status = 'playing';
     room.phase = 'roll';
     room.currentPlayerIndex = 0;
+    room.pendingExtraTurn = false;
+    room.pendingPurple = null;
+    room.pendingRoll = null;
+    room.rolling = null;
+    room.winnerId = null;
+    room.coinEvents = [];
+    room.specialEvents = [];
     log(room, `ゲームを開始しました。山札から場を ${marketSize(room)} 種類まで作りました。山札残り ${room.deck.length} 枚。`);
     cb?.({ ok: true });
     emitRoom(room);
@@ -652,8 +693,16 @@ io.on('connection', (socket) => {
       const before = marketSize(room);
       const drawn = fillMarket(room);
       const after = marketSize(room);
-      if (drawn > 0) log(room, `山札から補充しました。場 ${before} → ${after} 種類、山札残り ${room.deck.length} 枚。`);
-      else if (after < 10) log(room, `山札がないため、場は ${after} 種類のままです。`);
+      if (drawn > 0) {
+        const text = `山札から補充しました。場 ${before} → ${after} 種類、山札残り ${room.deck.length} 枚。`;
+        log(room, text);
+        specialEvent(room, 'market-refill', null, text, { removedCardId: cardId, marketSize: after, deckCount: room.deck.length });
+      }
+      else if (after < 10) {
+        const text = `山札がないため、場は ${after} 種類のままです。`;
+        log(room, text);
+        specialEvent(room, 'market-empty', null, text, { marketSize: after, deckCount: room.deck.length });
+      }
     }
     advanceTurn(room);
     cb?.({ ok: true });
@@ -699,6 +748,28 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
+
+
+  socket.on('hostForceSkip', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing') return cb?.({ ok: false, message: '進行中のゲームがありません。' });
+    if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ強制スキップできます。' });
+    const skipped = getCurrentPlayer(room);
+    room.rolling = null;
+    room.pendingRoll = null;
+    room.pendingPurple = null;
+    room.pendingExtraTurn = false;
+    room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
+    room.phase = 'roll';
+    room.canReroll = true;
+    room.lastRoll = null;
+    const text = `${skipped?.name || 'プレイヤー'} の手番をホストがスキップしました。`;
+    log(room, text);
+    specialEvent(room, 'host-skip', skipped || null, text);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
   socket.on('disconnect', () => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
@@ -706,6 +777,12 @@ io.on('connection', (socket) => {
     if (player && player.socketId === socket.id) {
       player.connected = false;
       log(room, `${player.name} の接続が切れました。`);
+      emitRoom(room);
+      return;
+    }
+    const spectator = (room.spectators || []).find(sp => sp.id === socket.data.spectatorId);
+    if (spectator && spectator.socketId === socket.id) {
+      spectator.connected = false;
       emitRoom(room);
     }
   });

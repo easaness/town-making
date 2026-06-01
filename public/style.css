@@ -519,7 +519,6 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 #statusText span {
   color: var(--muted);
 }
-.card.triggered,
 .owned-card.triggered {
   position: relative;
   outline: 3px solid #f59e0b;
@@ -572,6 +571,102 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 }
 .result-table tr:last-child td { border-bottom: 0; }
 @media (prefers-reduced-motion: reduce) {
-  .card.triggered,
   .owned-card.triggered { animation: none; }
+}
+
+/* UX update: recent effect, host control, mobile polish */
+.recent-notice {
+  display: grid;
+  gap: 3px;
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #ecfdf5;
+  border: 1px solid #86efac;
+  color: #14532d;
+  box-shadow: 0 10px 22px rgba(34,197,94,.12);
+  animation: recent-pop .28s ease-out both;
+}
+.recent-notice strong { font-weight: 1000; }
+.recent-notice span { color: #166534; font-weight: 800; line-height: 1.35; }
+.recent-notice.market { background: #eff6ff; border-color: #93c5fd; color: #1e3a8a; }
+.recent-notice.market span { color: #1d4ed8; }
+.recent-notice.host { background: #fff1f2; border-color: #fda4af; color: #9f1239; }
+.recent-notice.host span { color: #be123c; }
+@keyframes recent-pop {
+  from { opacity: 0; transform: translateY(6px) scale(.98); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+.host-controls {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px dashed #e4d6c2;
+}
+button.danger,
+button.secondary.danger {
+  background: #9f1239;
+  color: #fff;
+}
+button.danger:hover,
+button.secondary.danger:hover { background: #881337; }
+.volume-control {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.96);
+  color: #111827;
+  font-size: .78rem;
+  font-weight: 900;
+}
+.volume-control input {
+  width: 84px;
+  padding: 0;
+  accent-color: var(--accent);
+}
+.logs-panel h2::after {
+  content: ' 最新が上に表示されます';
+  color: var(--muted);
+  font-size: .78rem;
+  font-weight: 700;
+}
+@media (max-width: 800px) {
+  #app { width: min(100% - 18px, 1180px); padding: 14px 0 160px; }
+  .hero { padding: 18px; border-radius: 22px; align-items: stretch; }
+  .room-badge { border-radius: 18px; flex-wrap: wrap; justify-content: flex-start; white-space: normal; }
+  .panel { padding: 15px; border-radius: 18px; }
+  .topbar { position: sticky; top: 8px; z-index: 10; backdrop-filter: blur(10px); }
+  #turnActions { display: grid; gap: 10px; }
+  #turnActions .actions {
+    position: fixed;
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    z-index: 30;
+    margin: 0;
+    padding: 10px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: rgba(255,253,248,.96);
+    box-shadow: 0 18px 40px rgba(39,30,19,.18);
+  }
+  #turnActions .actions button { flex: 1 1 140px; min-height: 46px; }
+  .cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
+  .card { padding: 11px; border-radius: 15px; }
+  .card h4 { font-size: .95rem; }
+  .card p { font-size: .82rem; }
+  .market-trigger { padding: 8px; }
+  .market-trigger .trigger-badges span { min-width: 34px; height: 34px; font-size: 1.05rem; }
+  .trigger-badges span { min-width: 30px; height: 30px; font-size: 1rem; }
+  .logs { max-height: 170px; }
+  .dice-stage { padding: 12px; }
+  .volume-control { width: 100%; justify-content: space-between; }
+  .volume-control input { width: 130px; }
+}
+@media (max-width: 430px) {
+  .cards { grid-template-columns: 1fr; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .recent-notice { animation: none; }
 }

@@ -136,7 +136,9 @@ function syncSpecialEvents(next) {
 
 function activeSpecialNotice() {
   const now = Date.now();
-  const items = activeSpecialFx.filter(fx => fx.expiresAt > now);
+  const items = activeSpecialFx.filter(fx =>
+    fx.expiresAt > now && String(fx.type || '').startsWith('amusement')
+  );
   return items.length ? items[items.length - 1] : null;
 }
 
@@ -565,10 +567,20 @@ function renderStatus() {
 
 
 function latestNoticeEvent() {
-  const live = activeSpecialFx.filter(fx => fx.expiresAt > Date.now());
+  const now = Date.now();
+  const live = activeSpecialFx.filter(fx => fx.expiresAt > now);
   if (live.length) return live[live.length - 1];
   const events = state?.specialEvents || [];
-  return events.length ? events[events.length - 1] : null;
+  if (!events.length) return null;
+
+  // 遊園地の通知は古いまま残ると「1個振りで発動した」ように見えるため、
+  // ライブ表示中だけ直近通知として扱う。
+  for (let i = events.length - 1; i >= 0; i--) {
+    const ev = events[i];
+    if (String(ev.type || '').startsWith('amusement')) continue;
+    return ev;
+  }
+  return null;
 }
 
 function renderRecentNotice() {

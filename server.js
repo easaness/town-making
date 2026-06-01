@@ -223,6 +223,7 @@ function specialEvent(room, type, player, label, extra = {}) {
   room.eventSeq = (room.eventSeq || 0) + 1;
   room.specialEvents.push({
     id: room.eventSeq,
+    ts: Date.now(),
     type,
     playerId: player?.id || null,
     playerName: player?.name || '',
@@ -378,10 +379,19 @@ function resolveRoll(room, diceValues) {
     if (count(roller, 'business') && canUseBusinessCenter(room, roller)) purpleQueue.push('business');
   }
 
-  room.pendingExtraTurn = diceValues.length === 2 && diceValues[0] === diceValues[1] && has(roller, 'amusement');
-  if (room.pendingExtraTurn) {
+  const amusementTriggered =
+    Array.isArray(diceValues) &&
+    diceValues.length === 2 &&
+    diceValues[0] === diceValues[1] &&
+    has(roller, 'amusement');
+  room.pendingExtraTurn = amusementTriggered;
+  if (amusementTriggered) {
     log(room, `${roller.name} は遊園地効果で追加ターンを得ます。`);
-    specialEvent(room, 'amusement-earned', roller, '遊園地発動');
+    specialEvent(room, 'amusement-earned', roller, '遊園地発動', {
+      dice: [...diceValues],
+      total,
+      reason: 'two-dice-double'
+    });
   }
   if (purpleQueue.length) {
     room.pendingPurple = { playerId: roller.id, effects: purpleQueue, current: purpleQueue[0] };

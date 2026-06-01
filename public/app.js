@@ -20,7 +20,21 @@ let soundEnabled = true;
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
 
-socket.on('connect', () => { myId = socket.id; });
+socket.on('connect', () => {
+  const savedCode = localStorage.getItem('machikoroRoomCode');
+  const savedPlayerId = localStorage.getItem('machikoroPlayerId');
+  if (savedPlayerId) myId = savedPlayerId;
+  if (savedCode && savedPlayerId) {
+    socket.emit('reconnectPlayer', { code: savedCode, playerId: savedPlayerId }, (res) => {
+      if (res?.ok) {
+        rememberSession(res.code, res.playerId);
+        showMessage('再接続しました。');
+      } else {
+        showMessage('前回のルームに自動復帰できませんでした。サーバー側の保存がない場合は新しいルームを作成してください。');
+      }
+    });
+  }
+});
 socket.on('state', (next) => {
   syncCoinEvents(next);
   syncSpecialEvents(next);
@@ -206,6 +220,18 @@ function emitWithMessage(event, payload = {}) {
   });
 }
 
+function rememberSession(code, playerId) {
+  if (!code || !playerId) return;
+  myId = playerId;
+  localStorage.setItem('machikoroRoomCode', code);
+  localStorage.setItem('machikoroPlayerId', playerId);
+}
+
+function clearSavedSession() {
+  localStorage.removeItem('machikoroRoomCode');
+  localStorage.removeItem('machikoroPlayerId');
+}
+
 
 function rollDice(count) {
   if (localRollingCount) return;
@@ -265,12 +291,18 @@ function showMessage(text) {
 }
 
 $('createBtn').onclick = () => {
-  emitWithMessage('createRoom', { name: $('nameInput').value.trim() || 'ゲスト' });
+  socket.emit('createRoom', { name: $('nameInput').value.trim() || 'ゲスト' }, (res) => {
+    if (!res?.ok) return showMessage(res?.message || 'ルームを作成できませんでした。');
+    rememberSession(res.code, res.playerId);
+  });
 };
 $('joinBtn').onclick = () => {
   const code = $('codeInput').value.trim().toUpperCase();
   if (!code) return showMessage('ルームコードを入力してください。');
-  emitWithMessage('joinRoom', { code, name: $('nameInput').value.trim() || 'ゲスト' });
+  socket.emit('joinRoom', { code, name: $('nameInput').value.trim() || 'ゲスト' }, (res) => {
+    if (!res?.ok) return showMessage(res?.message || '参加できませんでした。');
+    rememberSession(res.code, res.playerId);
+  });
 };
 $('startBtn').onclick = () => emitWithMessage('startGame');
 $('copyRoomCodeBtn').onclick = copyRoomCode;

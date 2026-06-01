@@ -1,6 +1,9 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
+const { randomUUID } = require('crypto');
+const fs = require('fs');
+const path = require('path');
 
 const app = express();
 const server = http.createServer(app);
@@ -35,6 +38,71 @@ const LANDMARKS = {
 };
 
 const rooms = new Map();
+
+const DATA_DIR = process.env.DATA_DIR || (fs.existsSync('/var/data') ? '/var/data' : path.join(__dirname, 'data'));
+const SNAPSHOT_FILE = path.join(DATA_DIR, 'rooms.json');
+let saveTimer = null;
+
+function normalizeLoadedRoom(room) {
+  if (!room || !room.code || !Array.isArray(room.players)) return null;
+  room.players.forEach((player) => {
+    player.socketId = null;
+    player.connected = false;
+  });
+  room.rolling = null;
+  room.logs = Array.isArray(room.logs) ? room.logs : [];
+  room.coinEvents = Array.isArray(room.coinEvents) ? room.coinEvents : [];
+  room.specialEvents = Array.isArray(room.specialEvents) ? room.specialEvents : [];
+  room.deck = Array.isArray(room.deck) ? room.deck : [];
+  room.market = room.market || {};
+  room.eventSeq = Number(room.eventSeq || 0);
+  return room;
+}
+
+function loadRoomsFromDisk() {
+  try {
+    if (!fs.existsSync(SNAPSHOT_FILE)) return;
+    const raw = fs.readFileSync(SNAPSHOT_FILE, 'utf8');
+    const saved = JSON.parse(raw);
+    const list = Array.isArray(saved?.rooms) ? saved.rooms : [];
+    for (const item of list) {
+      const room = normalizeLoadedRoom(item);
+      if (room) rooms.set(room.code, room);
+    }
+    console.log(`Loaded ${rooms.size} room(s) from ${SNAPSHOT_FILE}`);
+  } catch (err) {
+    console.error('Could not load room snapshot:', err.message);
+  }
+}
+
+function roomSnapshot(room) {
+  return {
+    ...room,
+    players: room.players.map(player => ({ ...player, socketId: null, connected: false })),
+    rolling: null
+  };
+}
+
+function saveRoomsNow() {
+  try {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+    const tmp = `${SNAPSHOT_FILE}.tmp`;
+    const payload = {
+      savedAt: new Date().toISOString(),
+      rooms: Array.from(rooms.values()).map(roomSnapshot)
+    };
+    fs.writeFileSync(tmp, JSON.stringify(payload));
+    fs.renameSync(tmp, SNAPSHOT_FILE);
+  } catch (err) {
+    console.error('Could not save room snapshot:', err.message);
+  }
+}
+
+function scheduleSaveRooms() {
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(saveRoomsNow, 150);
+}
+
 
 function roomCode() {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
@@ -73,9 +141,10 @@ function fillMarket(room) {
   return drawn;
 }
 
-function makePlayer(socketId, name) {
+function makePlayer(playerId, name, socketId) {
   return {
-    id: socketId,
+    id: playerId,
+    socketId,
     name: (name || 'ゲスト').slice(0, 18),
     coins: 3,
     cards: { wheat: 1, bakery: 1 },
@@ -89,7 +158,7 @@ function publicRoom(room) {
     code: room.code,
     hostId: room.hostId,
     status: room.status,
-    players: room.players,
+    players: room.players.map(({ socketId, ...player }) => player),
     currentPlayerIndex: room.currentPlayerIndex,
     market: room.market,
     deckCount: room.deck?.length || 0,
@@ -110,6 +179,7 @@ function publicRoom(room) {
 }
 
 function emitRoom(room) {
+  scheduleSaveRooms();
   io.to(room.code).emit('state', publicRoom(room));
 }
 
@@ -335,10 +405,11 @@ io.on('connection', (socket) => {
   socket.on('createRoom', ({ name }, cb) => {
     let code = roomCode();
     while (rooms.has(code)) code = roomCode();
-    const player = makePlayer(socket.id, name);
+    const playerId = randomUUID();
+    const player = makePlayer(playerId, name, socket.id);
     const room = {
       code,
-      hostId: socket.id,
+      hostId: player.id,
       status: 'waiting',
       players: [player],
       currentPlayerIndex: 0,
@@ -360,8 +431,24 @@ io.on('connection', (socket) => {
     rooms.set(code, room);
     socket.join(code);
     socket.data.roomCode = code;
+    socket.data.playerId = player.id;
     log(room, `${player.name} がルームを作成しました。`);
-    cb?.({ ok: true, code });
+    cb?.({ ok: true, code, playerId: player.id });
+    emitRoom(room);
+  });
+
+  socket.on('reconnectPlayer', ({ code, playerId }, cb) => {
+    const room = rooms.get((code || '').toUpperCase());
+    if (!room || !playerId) return cb?.({ ok: false });
+    const player = room.players.find(p => p.id === playerId);
+    if (!player) return cb?.({ ok: false });
+    player.connected = true;
+    player.socketId = socket.id;
+    socket.join(room.code);
+    socket.data.roomCode = room.code;
+    socket.data.playerId = player.id;
+    log(room, `${player.name} が再接続しました。`);
+    cb?.({ ok: true, code: room.code, playerId: player.id });
     emitRoom(room);
   });
 
@@ -370,19 +457,21 @@ io.on('connection', (socket) => {
     if (!room) return cb?.({ ok: false, message: 'ルームが見つかりません。' });
     if (room.status !== 'waiting') return cb?.({ ok: false, message: '開始済みのルームです。' });
     if (room.players.length >= 4) return cb?.({ ok: false, message: 'このルームは満員です。' });
-    const player = makePlayer(socket.id, name);
+    const playerId = randomUUID();
+    const player = makePlayer(playerId, name, socket.id);
     room.players.push(player);
     socket.join(room.code);
     socket.data.roomCode = room.code;
+    socket.data.playerId = player.id;
     log(room, `${player.name} が参加しました。`);
-    cb?.({ ok: true, code: room.code });
+    cb?.({ ok: true, code: room.code, playerId: player.id });
     emitRoom(room);
   });
 
   socket.on('startGame', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
-    if (socket.id !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
+    if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
     if (room.players.length < 1) return cb?.({ ok: false, message: '1人以上で開始してください。' });
     room.deck = makeDeck();
     room.market = {};
@@ -400,7 +489,7 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.phase !== 'roll') return;
     if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
     const player = getCurrentPlayer(room);
-    if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const countDice = Number(diceCount) === 2 && has(player, 'station') ? 2 : 1;
     room.rolling = { playerId: player.id, playerName: player.name, diceCount: countDice, mode: 'roll', nonce: Date.now() };
     cb?.({ ok: true });
@@ -429,7 +518,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'reroll' || !room.pendingRoll) return;
     const player = getCurrentPlayer(room);
-    if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const dice = room.pendingRoll.dice;
     room.pendingRoll = null;
     room.canReroll = false;
@@ -443,7 +532,7 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.phase !== 'reroll' || !room.pendingRoll || !room.canReroll) return;
     if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
     const player = getCurrentPlayer(room);
-    if (player.id !== socket.id || !has(player, 'tower')) return cb?.({ ok: false, message: '振り直しできません。' });
+    if (player.id !== socket.data.playerId || !has(player, 'tower')) return cb?.({ ok: false, message: '振り直しできません。' });
     const countDice = room.pendingRoll.diceCount;
     room.rolling = { playerId: player.id, playerName: player.name, diceCount: countDice, mode: 'reroll', nonce: Date.now() };
     cb?.({ ok: true });
@@ -469,7 +558,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'tv') return;
     const player = getCurrentPlayer(room);
-    if (!player || player.id !== socket.id || room.pendingPurple.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (!player || player.id !== socket.data.playerId || room.pendingPurple.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const target = room.players.find(p => p.id === targetId && p.id !== player.id);
     if (!target) return cb?.({ ok: false, message: '対象プレイヤーを選んでください。' });
     const paid = stealCoins(room, target, player, 5, 'テレビ局');
@@ -484,7 +573,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'business') return;
     const player = getCurrentPlayer(room);
-    if (!player || player.id !== socket.id || room.pendingPurple.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (!player || player.id !== socket.data.playerId || room.pendingPurple.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const target = room.players.find(p => p.id === targetId && p.id !== player.id);
     if (!target) return cb?.({ ok: false, message: '交換相手を選んでください。' });
     const myCard = CARD_DEFS[myCardId];
@@ -510,7 +599,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'purple') return;
     const player = getCurrentPlayer(room);
-    if (!player || player.id !== socket.id || room.pendingPurple?.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (!player || player.id !== socket.data.playerId || room.pendingPurple?.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const label = room.pendingPurple.current === 'tv' ? 'テレビ局' : 'ビジネスセンター';
     log(room, `${player.name} は${label}の効果を使いませんでした。`);
     finishCurrentPurple(room);
@@ -522,7 +611,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
-    if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const card = CARD_DEFS[cardId];
     if (!card) return cb?.({ ok: false, message: 'カードがありません。' });
     if (!room.market || !room.market[cardId]) return cb?.({ ok: false, message: `${card.name} は現在の場にありません。` });
@@ -550,7 +639,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
-    if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const landmark = LANDMARKS[landmarkId];
     if (!landmark) return cb?.({ ok: false, message: 'ランドマークがありません。' });
     if (player.landmarks[landmarkId]) return cb?.({ ok: false, message: 'すでに完成済みです。' });
@@ -568,7 +657,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
-    if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     log(room, `${player.name} は建設せずに手番を終えました。`);
     advanceTurn(room);
     cb?.({ ok: true });
@@ -578,13 +667,24 @@ io.on('connection', (socket) => {
   socket.on('disconnect', () => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
-    const player = room.players.find(p => p.id === socket.id);
-    if (player) {
+    const player = room.players.find(p => p.id === socket.data.playerId);
+    if (player && player.socketId === socket.id) {
       player.connected = false;
       log(room, `${player.name} の接続が切れました。`);
       emitRoom(room);
     }
   });
+});
+
+loadRoomsFromDisk();
+
+process.on('SIGTERM', () => {
+  saveRoomsNow();
+  process.exit(0);
+});
+process.on('SIGINT', () => {
+  saveRoomsNow();
+  process.exit(0);
 });
 
 server.listen(PORT, () => console.log(`Server running on ${PORT}`));

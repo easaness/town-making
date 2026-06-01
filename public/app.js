@@ -466,8 +466,18 @@ function phaseGuideText() {
   return '';
 }
 
-function isTriggeredCard(card) {
-  return Boolean(state?.lastRoll?.total && card?.dice?.includes(state.lastRoll.total) && ['build', 'purple', 'reroll'].includes(state.phase));
+function isTriggeredCard(card, owner) {
+  const roll = state?.lastRoll;
+  if (!roll?.total || !card?.dice?.includes(roll.total)) return false;
+  if (!['build', 'purple'].includes(state.phase)) return false;
+
+  // Actual activation rules by card color:
+  // blue: anyone's turn, red: other player's turn, green/purple: owner's turn only.
+  if (card.color === 'blue') return true;
+  if (card.color === 'red') return owner?.id && owner.id !== roll.playerId;
+  if (card.color === 'green') return owner?.id && owner.id === roll.playerId;
+  if (card.color === 'purple') return owner?.id && owner.id === roll.playerId;
+  return false;
 }
 
 function buildDisableReason(card, owned, affordable, canBuild) {
@@ -577,6 +587,7 @@ function render() {
   renderBuilds();
   renderLogs();
   renderHostAdmin();
+  renderStickyHud();
 }
 
 function renderStatus() {
@@ -744,13 +755,72 @@ function confirmHostForceSkip() {
   emitWithMessage('hostForceSkip');
 }
 
+
+function stickyHudActionHtml() {
+  if (!state || state.status !== 'playing') return '';
+  const mine = me();
+  if (!mine) return '<span class="hud-wait">観戦中</span>';
+  if (state.rolling || localRollingCount) return '<span class="hud-wait">ダイス中...</span>';
+  if (!isMyTurn()) {
+    const cp = currentPlayer();
+    return `<span class="hud-wait">${escapeHtml(cp?.name || '相手')} の番</span>`;
+  }
+  if (state.phase === 'roll') {
+    const canTwo = mine.landmarks.station;
+    return `<button onclick="rollDice(1)">1個振る</button><button ${canTwo ? '' : 'disabled'} onclick="rollDice(2)">2個振る</button>`;
+  }
+  if (state.phase === 'reroll') {
+    return `<button onclick="emitWithMessage('acceptRoll')">この出目で進める</button><button class="secondary" onclick="rerollDice()">振り直す</button>`;
+  }
+  if (state.phase === 'build') {
+    return `<button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>`;
+  }
+  if (state.phase === 'purple') {
+    return '<span class="hud-wait">紫カードを選択中</span>';
+  }
+  return '';
+}
+
+function renderStickyHud() {
+  const el = $('stickyHud');
+  if (!el) return;
+  const mine = me();
+  const show = state && state.status === 'playing' && mine;
+  el.classList.toggle('hidden', !show);
+  if (!show) {
+    el.innerHTML = '';
+    return;
+  }
+  const cp = currentPlayer();
+  const myTurnNow = isMyTurn();
+  const phaseLabel = state.rolling
+    ? 'ダイス中'
+    : state.phase === 'roll'
+      ? 'ダイス'
+      : state.phase === 'reroll'
+        ? '振り直し'
+        : state.phase === 'purple'
+          ? '紫カード'
+          : state.phase === 'build'
+            ? '建設'
+            : '進行中';
+  el.className = `sticky-hud ${myTurnNow ? 'my-turn' : 'wait-turn'}`;
+  el.innerHTML = `
+    <div class="hud-info">
+      <strong>あなた ${mine.coins}🪙</strong>
+      <span>${myTurnNow ? 'あなたの番' : `${escapeHtml(cp?.name || '相手')} の番`} / ${phaseLabel}</span>
+    </div>
+    <div class="hud-actions">${stickyHudActionHtml()}</div>
+  `;
+}
+
 function renderPlayers() {
   $('players').innerHTML = state.players.map((p, idx) => {
     const builtCards = Object.entries(p.cards)
       .filter(([, n]) => n > 0)
       .map(([id, n]) => {
         const card = state.cards[id];
-        const triggered = isTriggeredCard(card);
+        const triggered = isTriggeredCard(card, p);
         return `<div class="owned-card ${card.color} ${triggered ? 'triggered' : ''}">
           <div class="owned-card-head">
             <strong>${card.name}×${n}</strong>

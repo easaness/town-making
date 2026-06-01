@@ -158,7 +158,8 @@ function renderStatus() {
   $('statusTitle').textContent = isMyTurn() ? 'あなたの手番です' : `${cp?.name} の手番`;
   const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : '建設フェーズ';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
-  $('statusText').textContent = `${phaseText}${rollText} / あなた: ${m?.coins ?? 0} コイン`;
+  const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
+  $('statusText').textContent = `${phaseText}${rollText} / あなた: ${m?.coins ?? 0} コイン${marketText}`;
 }
 
 function renderPlayers() {
@@ -257,20 +258,29 @@ function renderBuilds() {
     </article>`;
   }).join('');
 
-  $('cards').innerHTML = Object.entries(state.cards).map(([id, card]) => {
-    const supply = state.supply[id] || 0;
+  const marketEntries = Object.entries(state.market || {})
+    .filter(([, pile]) => pile > 0)
+    .sort(([a], [b]) => {
+      const ca = state.cards[a];
+      const cb = state.cards[b];
+      return Math.min(...ca.dice) - Math.min(...cb.dice) || ca.cost - cb.cost || ca.name.localeCompare(cb.name, 'ja');
+    });
+  if (!marketEntries.length) {
+    $('cards').innerHTML = '<p class="small">場に施設カードがありません。山札も残っていない可能性があります。</p>';
+    return;
+  }
+  $('cards').innerHTML = marketEntries.map(([id, pile]) => {
+    const card = state.cards[id];
     const owned = m?.cards[id] || 0;
     const affordable = (m?.coins || 0) >= card.cost;
     const purpleLimit = card.color === 'purple' && owned >= 1;
-    const soldOut = supply <= 0;
-    const buildDisabled = !canBuild || soldOut || !affordable || purpleLimit;
-    const stockText = soldOut ? '売り切れ' : `残り${supply}枚`;
-    const buttonText = soldOut ? '売り切れ' : '建設';
-    return `<article class="card ${card.color} ${soldOut ? 'soldout' : ''}">
+    const buildDisabled = !canBuild || !affordable || purpleLimit;
+    const buttonText = purpleLimit ? '所持済み' : '建設';
+    return `<article class="card ${card.color}">
       <h4>${card.name}<span>${card.cost}🪙</span></h4>
       <p><strong>出目:</strong> ${diceRange(card)} / ${colorText[card.color]}</p>
       <p>${cardDescription(id, card)}</p>
-      <p class="stock-line ${soldOut ? 'soldout-text' : ''}">${stockText}<span>所持 ${owned}</span></p>
+      <p class="stock-line">場の山 ${pile}枚<span>所持 ${owned}</span></p>
       <button ${buildDisabled ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${buttonText}</button>
     </article>`;
   }).join('');

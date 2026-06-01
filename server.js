@@ -40,12 +40,38 @@ function roomCode() {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
-function initialSupply() {
-  const supply = {};
-  for (const id of Object.keys(CARD_DEFS)) supply[id] = CARD_DEFS[id].color === 'purple' ? 4 : 6;
-  return supply;
+function makeDeck() {
+  const deck = [];
+  for (const [id, card] of Object.entries(CARD_DEFS)) {
+    const copies = card.color === 'purple' ? 4 : 6;
+    for (let i = 0; i < copies; i++) deck.push(id);
+  }
+  return shuffle(deck);
 }
 
+function shuffle(items) {
+  const arr = [...items];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function marketSize(room) {
+  return Object.keys(room.market || {}).length;
+}
+
+function fillMarket(room) {
+  if (!room.market) room.market = {};
+  let drawn = 0;
+  while (marketSize(room) < 10 && room.deck.length > 0) {
+    const cardId = room.deck.shift();
+    room.market[cardId] = (room.market[cardId] || 0) + 1;
+    drawn++;
+  }
+  return drawn;
+}
 
 function makePlayer(socketId, name) {
   return {
@@ -65,7 +91,8 @@ function publicRoom(room) {
     status: room.status,
     players: room.players,
     currentPlayerIndex: room.currentPlayerIndex,
-    supply: room.supply,
+    market: room.market,
+    deckCount: room.deck?.length || 0,
     phase: room.phase,
     lastRoll: room.lastRoll,
     pendingRoll: room.pendingRoll,
@@ -239,7 +266,8 @@ io.on('connection', (socket) => {
       status: 'waiting',
       players: [player],
       currentPlayerIndex: 0,
-      supply: initialSupply(),
+      deck: [],
+      market: {},
       phase: 'waiting',
       lastRoll: null,
       canReroll: true,
@@ -275,10 +303,13 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (socket.id !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
     if (room.players.length < 1) return cb?.({ ok: false, message: '1人以上で開始してください。' });
+    room.deck = makeDeck();
+    room.market = {};
+    fillMarket(room);
     room.status = 'playing';
     room.phase = 'roll';
     room.currentPlayerIndex = 0;
-    log(room, 'ゲームを開始しました。');
+    log(room, `ゲームを開始しました。山札から場を ${marketSize(room)} 種類まで作りました。山札残り ${room.deck.length} 枚。`);
     cb?.({ ok: true });
     emitRoom(room);
   });
@@ -336,14 +367,22 @@ io.on('connection', (socket) => {
     if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const card = CARD_DEFS[cardId];
     if (!card) return cb?.({ ok: false, message: 'カードがありません。' });
-    if ((room.supply[cardId] || 0) <= 0) return cb?.({ ok: false, message: `${card.name} は売り切れです。` });
+    if (!room.market || !room.market[cardId]) return cb?.({ ok: false, message: `${card.name} は現在の場にありません。` });
     if (player.coins < card.cost) return cb?.({ ok: false, message: 'コインが足りません。' });
     if (card.color === 'purple' && count(player, cardId) >= 1) return cb?.({ ok: false, message: '紫カードは各種類1件までです。' });
     player.coins -= card.cost;
     player.cards[cardId] = count(player, cardId) + 1;
-    room.supply[cardId] -= 1;
-    log(room, `${player.name} が ${card.name} を建設しました。残り在庫 ${room.supply[cardId]} 枚。`);
-    if (room.supply[cardId] === 0) log(room, `${card.name} は売り切れました。`);
+    room.market[cardId] -= 1;
+    log(room, `${player.name} が ${card.name} を建設しました。場の残り ${room.market[cardId]} 枚。`);
+    if (room.market[cardId] <= 0) {
+      delete room.market[cardId];
+      log(room, `${card.name} の山が場からなくなりました。`);
+      const before = marketSize(room);
+      const drawn = fillMarket(room);
+      const after = marketSize(room);
+      if (drawn > 0) log(room, `山札から補充しました。場 ${before} → ${after} 種類、山札残り ${room.deck.length} 枚。`);
+      else if (after < 10) log(room, `山札がないため、場は ${after} 種類のままです。`);
+    }
     advanceTurn(room);
     cb?.({ ok: true });
     emitRoom(room);

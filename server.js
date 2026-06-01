@@ -46,6 +46,7 @@ function initialSupply() {
   return supply;
 }
 
+
 function makePlayer(socketId, name) {
   return {
     id: socketId,
@@ -335,13 +336,14 @@ io.on('connection', (socket) => {
     if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const card = CARD_DEFS[cardId];
     if (!card) return cb?.({ ok: false, message: 'カードがありません。' });
-    if ((room.supply[cardId] || 0) <= 0) return cb?.({ ok: false, message: '在庫がありません。' });
+    if ((room.supply[cardId] || 0) <= 0) return cb?.({ ok: false, message: `${card.name} は売り切れです。` });
     if (player.coins < card.cost) return cb?.({ ok: false, message: 'コインが足りません。' });
     if (card.color === 'purple' && count(player, cardId) >= 1) return cb?.({ ok: false, message: '紫カードは各種類1件までです。' });
     player.coins -= card.cost;
     player.cards[cardId] = count(player, cardId) + 1;
     room.supply[cardId] -= 1;
-    log(room, `${player.name} が ${card.name} を建設しました。`);
+    log(room, `${player.name} が ${card.name} を建設しました。残り在庫 ${room.supply[cardId]} 枚。`);
+    if (room.supply[cardId] === 0) log(room, `${card.name} は売り切れました。`);
     advanceTurn(room);
     cb?.({ ok: true });
     emitRoom(room);

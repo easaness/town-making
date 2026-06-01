@@ -98,7 +98,7 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 12px 24px rgba(228,123,55,.12);
 }
 .dice-stage.rolling-live {
-  animation: stage-shake .42s ease-in-out 2;
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.8), 0 16px 30px rgba(228,123,55,.16);
 }
 .dice-stage::before {
   content: '';
@@ -121,12 +121,14 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   position: relative;
   display: flex;
   align-items: center;
-  gap: 12px;
-  min-height: 76px;
+  justify-content: center;
+  gap: 18px;
+  min-height: 112px;
+  perspective: 620px;
 }
 .dice-face {
-  width: 66px;
-  height: 66px;
+  width: 68px;
+  height: 68px;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
@@ -159,10 +161,11 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   transform: rotate(9deg);
 }
 .dice-face.rolling-live {
-  animation: dice-flight .78s cubic-bezier(.2,.9,.25,1.25) both, dice-spin .22s linear infinite;
+  animation: dice-roll-across 1.08s cubic-bezier(.16,.78,.22,1) both;
 }
 .dice-face.rolling-live.d2 {
-  animation-delay: .04s, .04s;
+  animation-name: dice-roll-across-two;
+  animation-delay: .08s;
 }
 .dice-face.settled {
   animation: dice-pop .38s ease-out both;
@@ -183,23 +186,23 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   font-size: 1.35rem;
   color: var(--accent-dark);
 }
-@keyframes dice-flight {
-  0% { transform: translateX(-70px) translateY(-28px) rotate(-160deg) scale(.68); filter: blur(1.5px); }
-  28% { transform: translateX(38px) translateY(18px) rotate(210deg) scale(1.12); filter: blur(.8px); }
-  55% { transform: translateX(-22px) translateY(8px) rotate(420deg) scale(.96); filter: blur(.4px); }
-  78% { transform: translateX(10px) translateY(-6px) rotate(610deg) scale(1.05); filter: blur(0); }
-  100% { transform: translateX(0) translateY(0) rotate(720deg) scale(1); filter: blur(0); }
+@keyframes dice-roll-across {
+  0% { transform: translate3d(-145px, -54px, 0) rotateX(20deg) rotateY(0deg) rotateZ(-35deg) scale(.72); filter: blur(1.6px); }
+  18% { transform: translate3d(-78px, 30px, 0) rotateX(160deg) rotateY(110deg) rotateZ(120deg) scale(1.02); filter: blur(1px); }
+  36% { transform: translate3d(18px, -38px, 0) rotateX(330deg) rotateY(260deg) rotateZ(270deg) scale(1.12); filter: blur(.7px); }
+  55% { transform: translate3d(88px, 22px, 0) rotateX(520deg) rotateY(410deg) rotateZ(450deg) scale(.96); filter: blur(.45px); }
+  74% { transform: translate3d(28px, -16px, 0) rotateX(700deg) rotateY(560deg) rotateZ(620deg) scale(1.06); filter: blur(0); }
+  88% { transform: translate3d(-8px, 8px, 0) rotateX(825deg) rotateY(650deg) rotateZ(710deg) scale(.98); filter: blur(0); }
+  100% { transform: translate3d(0, 0, 0) rotateX(720deg) rotateY(720deg) rotateZ(720deg) scale(1); filter: blur(0); }
 }
-@keyframes dice-spin {
-  0% { box-shadow: 0 12px 18px rgba(31,41,51,.14), inset 0 2px 0 rgba(255,255,255,.9); }
-  50% { box-shadow: 0 20px 24px rgba(31,41,51,.22), inset 0 2px 0 rgba(255,255,255,.9); }
-  100% { box-shadow: 0 12px 18px rgba(31,41,51,.14), inset 0 2px 0 rgba(255,255,255,.9); }
-}
-@keyframes stage-shake {
-  0%, 100% { transform: translateX(0); }
-  25% { transform: translateX(-3px) rotate(-.4deg); }
-  50% { transform: translateX(3px) rotate(.4deg); }
-  75% { transform: translateX(-2px) rotate(-.2deg); }
+@keyframes dice-roll-across-two {
+  0% { transform: translate3d(145px, -48px, 0) rotateX(-25deg) rotateY(0deg) rotateZ(40deg) scale(.72); filter: blur(1.6px); }
+  18% { transform: translate3d(72px, 34px, 0) rotateX(-160deg) rotateY(-120deg) rotateZ(-120deg) scale(1.02); filter: blur(1px); }
+  38% { transform: translate3d(-26px, -34px, 0) rotateX(-350deg) rotateY(-270deg) rotateZ(-280deg) scale(1.12); filter: blur(.7px); }
+  58% { transform: translate3d(-92px, 20px, 0) rotateX(-540deg) rotateY(-430deg) rotateZ(-470deg) scale(.96); filter: blur(.45px); }
+  76% { transform: translate3d(-30px, -14px, 0) rotateX(-710deg) rotateY(-570deg) rotateZ(-640deg) scale(1.06); filter: blur(0); }
+  90% { transform: translate3d(10px, 8px, 0) rotateX(-840deg) rotateY(-660deg) rotateZ(-720deg) scale(.98); filter: blur(0); }
+  100% { transform: translate3d(0, 0, 0) rotateX(-720deg) rotateY(-720deg) rotateZ(-720deg) scale(1); filter: blur(0); }
 }
 @keyframes dice-pop {
   0% { transform: scale(.86); }
@@ -209,4 +212,36 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .dice-face.rolling-live,
   .dice-face.settled { animation: none; }
+}
+
+/* Card stock / sold out */
+.stock-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 6px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.62);
+  color: #344054;
+  font-weight: 800;
+  font-size: .86rem;
+}
+.stock-line span { color: var(--muted); font-weight: 700; }
+.card.soldout {
+  filter: grayscale(.82);
+  opacity: .58;
+  background: #f2f4f7 !important;
+  border-style: dashed;
+}
+.card.soldout h4,
+.card.soldout p { color: #667085; }
+.soldout-text {
+  background: #fee4e2;
+  color: #b42318;
+}
+.card.soldout button {
+  background: #98a2b3;
+  box-shadow: none;
 }

@@ -27,9 +27,17 @@ function emitWithMessage(event, payload = {}) {
 
 
 function rollDice(count) {
+  if (localRollingCount) return;
   localRollingCount = count;
   renderActions();
-  emitWithMessage('rollDice', { diceCount: count });
+  setTimeout(() => emitWithMessage('rollDice', { diceCount: count }), 720);
+}
+
+function rerollDice() {
+  if (localRollingCount) return;
+  localRollingCount = state?.pendingRoll?.dice?.length || 1;
+  renderActions();
+  setTimeout(() => emitWithMessage('rerollDice'), 720);
 }
 
 function showMessage(text) {
@@ -211,13 +219,19 @@ function renderActions() {
     return;
   }
   if (state.phase === 'reroll') {
+    if (localRollingCount) {
+      const previewDice = Array.from({ length: localRollingCount }, (_, i) => diceFace(((i * 3) % 6) + 1, `rolling-live d${i + 1}`)).join('');
+      el.innerHTML = `
+        <div class="dice-stage rolling-live"><div class="dice-label">振り直し中</div><div class="dice-row">${previewDice}</div><div class="dice-total">判定中</div></div>`;
+      return;
+    }
     const dice = diceTray(state.pendingRoll, '電波塔の出目');
     el.innerHTML = `
       ${dice}
       <p>電波塔効果で、この出目を採用するか1回だけ振り直せます。</p>
       <div class="actions">
         <button onclick="emitWithMessage('acceptRoll')">この出目で進める</button>
-        <button class="secondary" onclick="emitWithMessage('rerollDice')">振り直す</button>
+        <button class="secondary" onclick="rerollDice()">振り直す</button>
       </div>`;
     return;
   }
@@ -248,12 +262,16 @@ function renderBuilds() {
     const owned = m?.cards[id] || 0;
     const affordable = (m?.coins || 0) >= card.cost;
     const purpleLimit = card.color === 'purple' && owned >= 1;
-    return `<article class="card ${card.color}">
+    const soldOut = supply <= 0;
+    const buildDisabled = !canBuild || soldOut || !affordable || purpleLimit;
+    const stockText = soldOut ? '売り切れ' : `残り${supply}枚`;
+    const buttonText = soldOut ? '売り切れ' : '建設';
+    return `<article class="card ${card.color} ${soldOut ? 'soldout' : ''}">
       <h4>${card.name}<span>${card.cost}🪙</span></h4>
       <p><strong>出目:</strong> ${diceRange(card)} / ${colorText[card.color]}</p>
       <p>${cardDescription(id, card)}</p>
-      <p class="small">在庫 ${supply} / 所持 ${owned}</p>
-      <button ${canBuild && supply > 0 && affordable && !purpleLimit ? '' : 'disabled'} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">建設</button>
+      <p class="stock-line ${soldOut ? 'soldout-text' : ''}">${stockText}<span>所持 ${owned}</span></p>
+      <button ${buildDisabled ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${buttonText}</button>
     </article>`;
   }).join('');
 }

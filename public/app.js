@@ -4,6 +4,9 @@ let myId = null;
 let lastDiceKey = '';
 let diceJustChanged = false;
 let localRollingCount = 0;
+let rollingTimer = null;
+let rollingPreviewValues = [];
+let rollingNonce = 0;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
@@ -14,7 +17,7 @@ socket.on('state', (next) => {
   diceJustChanged = Boolean(nextKey && nextKey !== lastDiceKey);
   lastDiceKey = nextKey;
   state = next;
-  localRollingCount = 0;
+  stopLocalRoll();
   render();
   if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); }, 900);
 });
@@ -28,16 +31,47 @@ function emitWithMessage(event, payload = {}) {
 
 function rollDice(count) {
   if (localRollingCount) return;
-  localRollingCount = count;
-  renderActions();
-  setTimeout(() => emitWithMessage('rollDice', { diceCount: count }), 720);
+  startLocalRoll(count, 'rollDice', () => emitWithMessage('rollDice', { diceCount: count }));
 }
 
 function rerollDice() {
   if (localRollingCount) return;
-  localRollingCount = state?.pendingRoll?.dice?.length || 1;
+  const count = state?.pendingRoll?.dice?.length || 1;
+  startLocalRoll(count, 'rerollDice', () => emitWithMessage('rerollDice'));
+}
+
+function startLocalRoll(count, key, send) {
+  localRollingCount = count;
+  rollingNonce += 1;
+  rollingPreviewValues = Array.from({ length: count }, () => randomDie());
   renderActions();
-  setTimeout(() => emitWithMessage('rerollDice'), 720);
+  updateRollingDiceFaces();
+  clearInterval(rollingTimer);
+  rollingTimer = setInterval(() => {
+    rollingPreviewValues = rollingPreviewValues.map(() => randomDie());
+    updateRollingDiceFaces();
+  }, 95);
+  setTimeout(() => {
+    if (localRollingCount === count) send();
+  }, 520);
+}
+
+function stopLocalRoll() {
+  localRollingCount = 0;
+  rollingPreviewValues = [];
+  clearInterval(rollingTimer);
+  rollingTimer = null;
+}
+
+function randomDie() {
+  return Math.floor(Math.random() * 6) + 1;
+}
+
+function updateRollingDiceFaces() {
+  rollingPreviewValues.forEach((value, i) => {
+    const target = document.querySelector(`[data-rolling-die="${i}"]`);
+    if (target) target.innerHTML = dicePips(value);
+  });
 }
 
 function showMessage(text) {
@@ -66,7 +100,7 @@ function diceStateKey(next) {
   return `${next.phase}:${roll.dice.join('-')}:${roll.total}`;
 }
 
-function diceFace(value, extraClass = '') {
+function dicePips(value) {
   const pipMap = {
     1: [5],
     2: [1, 9],
@@ -75,16 +109,19 @@ function diceFace(value, extraClass = '') {
     5: [1, 3, 5, 7, 9],
     6: [1, 3, 4, 6, 7, 9]
   };
-  const pips = Array.from({ length: 9 }, (_, i) => {
+  return Array.from({ length: 9 }, (_, i) => {
     const pos = i + 1;
     return `<i class="${pipMap[value]?.includes(pos) ? 'on' : ''}"></i>`;
   }).join('');
-  return `<span class="dice-face ${extraClass}" aria-label="${value}">${pips}</span>`;
+}
+
+function diceFace(value, extraClass = '', attrs = '') {
+  return `<span class="dice-face ${extraClass}" ${attrs} aria-label="${value}">${dicePips(value)}</span>`;
 }
 
 function diceTray(roll, label = '出目') {
   if (!roll) return '<div class="dice-stage idle"><span>ダイス待ち</span></div>';
-  const rolling = diceJustChanged ? 'rolling-live' : 'settled';
+  const rolling = diceJustChanged ? 'result-roll' : 'settled';
   const dice = roll.dice.map((d, i) => diceFace(d, `${rolling} d${i + 1}`)).join('');
   return `<div class="dice-stage ${rolling}">
     <div class="dice-label">${label}</div>
@@ -205,9 +242,9 @@ function renderActions() {
   if (state.phase === 'roll') {
     const canTwo = m.landmarks.station;
     if (localRollingCount) {
-      const previewDice = Array.from({ length: localRollingCount }, (_, i) => diceFace(((i * 2) % 6) + 1, `rolling-live d${i + 1}`)).join('');
+      const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
       el.innerHTML = `
-        <div class="dice-stage rolling-live"><div class="dice-label">ダイス</div><div class="dice-row">${previewDice}</div><div class="dice-total">判定中</div></div>`;
+        <div class="dice-stage rolling-live"><div class="dice-label">ダイス</div><div class="dice-row rolling-row">${previewDice}</div></div>`;
       return;
     }
     el.innerHTML = `
@@ -221,9 +258,9 @@ function renderActions() {
   }
   if (state.phase === 'reroll') {
     if (localRollingCount) {
-      const previewDice = Array.from({ length: localRollingCount }, (_, i) => diceFace(((i * 3) % 6) + 1, `rolling-live d${i + 1}`)).join('');
+      const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
       el.innerHTML = `
-        <div class="dice-stage rolling-live"><div class="dice-label">振り直し中</div><div class="dice-row">${previewDice}</div><div class="dice-total">判定中</div></div>`;
+        <div class="dice-stage rolling-live"><div class="dice-label">振り直し中</div><div class="dice-row rolling-row">${previewDice}</div></div>`;
       return;
     }
     const dice = diceTray(state.pendingRoll, '電波塔の出目');

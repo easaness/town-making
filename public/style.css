@@ -245,3 +245,53 @@ button:disabled { opacity: .45; cursor: not-allowed; }
   background: #98a2b3;
   box-shadow: none;
 }
+
+/* Dice animation fix: the dice itself keeps rolling while waiting for the server result. */
+.dice-row.rolling-row {
+  min-height: 136px;
+}
+.dice-face.rolling-loop {
+  animation: dice-loop-roll .58s linear infinite;
+  will-change: transform, filter;
+}
+.dice-face.rolling-loop.d2 {
+  animation-name: dice-loop-roll-two;
+  animation-duration: .64s;
+}
+.dice-face.result-roll {
+  animation: dice-result-land .72s cubic-bezier(.2,.85,.25,1) both;
+  will-change: transform, filter;
+}
+.dice-face.result-roll.d2 {
+  animation-name: dice-result-land-two;
+}
+@keyframes dice-loop-roll {
+  0% { transform: translate3d(-70px, -28px, 0) rotateX(0deg) rotateY(0deg) rotateZ(-20deg) scale(.92); filter: blur(.7px); }
+  22% { transform: translate3d(-24px, 22px, 0) rotateX(155deg) rotateY(115deg) rotateZ(95deg) scale(1.06); filter: blur(.9px); }
+  47% { transform: translate3d(26px, -24px, 0) rotateX(330deg) rotateY(260deg) rotateZ(250deg) scale(1); filter: blur(.55px); }
+  72% { transform: translate3d(74px, 20px, 0) rotateX(520deg) rotateY(430deg) rotateZ(405deg) scale(1.08); filter: blur(.8px); }
+  100% { transform: translate3d(-70px, -28px, 0) rotateX(720deg) rotateY(720deg) rotateZ(700deg) scale(.92); filter: blur(.7px); }
+}
+@keyframes dice-loop-roll-two {
+  0% { transform: translate3d(72px, -26px, 0) rotateX(0deg) rotateY(0deg) rotateZ(25deg) scale(.92); filter: blur(.7px); }
+  25% { transform: translate3d(22px, 24px, 0) rotateX(-165deg) rotateY(-120deg) rotateZ(-95deg) scale(1.07); filter: blur(.9px); }
+  50% { transform: translate3d(-28px, -22px, 0) rotateX(-345deg) rotateY(-270deg) rotateZ(-260deg) scale(1); filter: blur(.55px); }
+  75% { transform: translate3d(-76px, 22px, 0) rotateX(-535deg) rotateY(-440deg) rotateZ(-415deg) scale(1.08); filter: blur(.8px); }
+  100% { transform: translate3d(72px, -26px, 0) rotateX(-720deg) rotateY(-720deg) rotateZ(-700deg) scale(.92); filter: blur(.7px); }
+}
+@keyframes dice-result-land {
+  0% { transform: translate3d(-130px, -44px, 0) rotateX(0deg) rotateY(0deg) rotateZ(-30deg) scale(.82); filter: blur(1px); }
+  45% { transform: translate3d(34px, 20px, 0) rotateX(430deg) rotateY(330deg) rotateZ(340deg) scale(1.12); filter: blur(.45px); }
+  72% { transform: translate3d(-10px, -12px, 0) rotateX(650deg) rotateY(560deg) rotateZ(520deg) scale(1.04); filter: blur(0); }
+  100% { transform: translate3d(0, 0, 0) rotateX(720deg) rotateY(720deg) rotateZ(720deg) scale(1); filter: blur(0); }
+}
+@keyframes dice-result-land-two {
+  0% { transform: translate3d(130px, -44px, 0) rotateX(0deg) rotateY(0deg) rotateZ(30deg) scale(.82); filter: blur(1px); }
+  45% { transform: translate3d(-34px, 20px, 0) rotateX(-430deg) rotateY(-330deg) rotateZ(-340deg) scale(1.12); filter: blur(.45px); }
+  72% { transform: translate3d(10px, -12px, 0) rotateX(-650deg) rotateY(-560deg) rotateZ(-520deg) scale(1.04); filter: blur(0); }
+  100% { transform: translate3d(0, 0, 0) rotateX(-720deg) rotateY(-720deg) rotateZ(-720deg) scale(1); filter: blur(0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .dice-face.rolling-loop,
+  .dice-face.result-roll { animation: none; }
+}

@@ -7,20 +7,68 @@ let localRollingCount = 0;
 let rollingTimer = null;
 let rollingPreviewValues = [];
 let rollingNonce = 0;
+let lastCoinEventId = null;
+let activeCoinFx = [];
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
 
 socket.on('connect', () => { myId = socket.id; });
 socket.on('state', (next) => {
+  syncCoinEvents(next);
   const nextKey = diceStateKey(next);
   diceJustChanged = Boolean(nextKey && nextKey !== lastDiceKey);
   lastDiceKey = nextKey;
   state = next;
-  stopLocalRoll();
+  if (state?.rolling) {
+    startRollingPreview(state.rolling.diceCount);
+  } else {
+    stopLocalRoll();
+  }
   render();
   if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); }, 900);
 });
+
+
+function syncCoinEvents(next) {
+  const events = next?.coinEvents || [];
+  const maxId = events.reduce((max, ev) => Math.max(max, ev.id || 0), 0);
+  if (lastCoinEventId === null) {
+    lastCoinEventId = maxId;
+    return;
+  }
+  const fresh = events.filter(ev => (ev.id || 0) > lastCoinEventId);
+  if (!fresh.length) {
+    lastCoinEventId = Math.max(lastCoinEventId, maxId);
+    return;
+  }
+  const now = Date.now();
+  activeCoinFx.push(...fresh.map((ev, index) => ({
+    ...ev,
+    uid: `${ev.id}-${index}-${now}`,
+    createdAt: now,
+    expiresAt: now + 1500
+  })));
+  lastCoinEventId = Math.max(lastCoinEventId, maxId);
+  setTimeout(() => {
+    const t = Date.now();
+    activeCoinFx = activeCoinFx.filter(fx => fx.expiresAt > t);
+    if (state) renderPlayers();
+  }, 1600);
+}
+
+function coinFxHtml(playerId) {
+  const now = Date.now();
+  const items = activeCoinFx.filter(fx => fx.playerId === playerId && fx.expiresAt > now);
+  if (!items.length) return '';
+  return `<div class="coin-fx-layer">${items.map((fx, i) => {
+    const positive = Number(fx.amount) > 0;
+    const cls = positive ? (fx.type === 'steal' ? 'steal-gain' : 'income-gain') : 'steal-loss';
+    const sign = positive ? '+' : '';
+    const label = fx.label ? `<small>${escapeHtml(fx.label)}</small>` : '';
+    return `<span class="coin-fx ${cls}" style="--fx-offset:${i}">${sign}${fx.amount}🪙${label}</span>`;
+  }).join('')}</div>`;
+}
 
 function emitWithMessage(event, payload = {}) {
   socket.emit(event, payload, (res) => {
@@ -41,19 +89,22 @@ function rerollDice() {
 }
 
 function startLocalRoll(count, key, send) {
+  startRollingPreview(count);
+  renderActions();
+  send();
+}
+
+function startRollingPreview(count) {
+  if (localRollingCount === count && rollingTimer) return;
   localRollingCount = count;
   rollingNonce += 1;
   rollingPreviewValues = Array.from({ length: count }, () => randomDie());
-  renderActions();
   updateRollingDiceFaces();
   clearInterval(rollingTimer);
   rollingTimer = setInterval(() => {
     rollingPreviewValues = rollingPreviewValues.map(() => randomDie());
     updateRollingDiceFaces();
   }, 95);
-  setTimeout(() => {
-    if (localRollingCount === count) send();
-  }, 520);
 }
 
 function stopLocalRoll() {
@@ -84,12 +135,12 @@ function showMessage(text) {
 }
 
 $('createBtn').onclick = () => {
-  emitWithMessage('createRoom', { name: $('nameInput').value.trim() || 'Player' });
+  emitWithMessage('createRoom', { name: $('nameInput').value.trim() || 'ゲスト' });
 };
 $('joinBtn').onclick = () => {
   const code = $('codeInput').value.trim().toUpperCase();
   if (!code) return showMessage('ルームコードを入力してください。');
-  emitWithMessage('joinRoom', { code, name: $('nameInput').value.trim() || 'Player' });
+  emitWithMessage('joinRoom', { code, name: $('nameInput').value.trim() || 'ゲスト' });
 };
 $('startBtn').onclick = () => emitWithMessage('startGame');
 
@@ -142,6 +193,12 @@ function isMyTurn() {
 }
 function yen(n) { return `${n} コイン`; }
 function diceRange(card) { return card.dice.join('/'); }
+function diceBadges(card) {
+  return `<div class="trigger-badges" aria-label="発動出目 ${diceRange(card)}">${card.dice.map(n => `<span>${n}</span>`).join('')}</div>`;
+}
+function smallCardMeta(card) {
+  return `<span class="card-kind-label">${colorText[card.color]}</span>`;
+}
 function cardDescription(id, card) {
   const map = {
     wheat: '誰のターンでも銀行から1コイン。',
@@ -157,8 +214,8 @@ function cardDescription(id, card) {
     apple: '誰のターンでも銀行から3コイン。',
     market: '自分のターンに麦畑・リンゴ園1件につき2コイン。',
     stadium: '自分のターンに全員から2コイン。',
-    tv: '自分のターンに最もコインが多い相手から最大5コイン。',
-    business: '交換効果。現バージョンでは未実装。'
+    tv: '自分のターンに相手1人を選び、最大5コインもらう。',
+    business: '自分と相手の紫以外の施設を1件ずつ交換する。'
   };
   return map[id] || card.name;
 }
@@ -193,10 +250,11 @@ function renderStatus() {
     return;
   }
   $('statusTitle').textContent = isMyTurn() ? 'あなたの手番です' : `${cp?.name} の手番`;
-  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : '建設フェーズ';
+  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
+  const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
-  $('statusText').textContent = `${phaseText}${rollText} / あなた: ${m?.coins ?? 0} コイン${marketText}`;
+  $('statusText').textContent = `${phaseText}${rollingText}${rollText} / あなた: ${m?.coins ?? 0} コイン${marketText}`;
 }
 
 function renderPlayers() {
@@ -208,20 +266,67 @@ function renderPlayers() {
         return `<div class="owned-card ${card.color}">
           <div class="owned-card-head">
             <strong>${card.name}×${n}</strong>
-            <span>${diceRange(card)} / ${colorText[card.color]}</span>
+            ${smallCardMeta(card)}
           </div>
+          <div class="owned-trigger-row"><span>発動</span>${diceBadges(card)}</div>
           <div class="owned-card-effect">${cardDescription(id, card)}</div>
         </div>`;
       }).join('') || '<div class="small empty-owned">建築済み施設はまだありません。</div>';
     const landmarks = Object.entries(p.landmarks)
       .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id].text)}">${done ? '✅' : '⬜'} ${state.landmarks[id].name}</span>`).join('');
     return `<div class="player ${idx === state.currentPlayerIndex ? 'current' : ''}">
+      ${coinFxHtml(p.id)}
       <h3><span>${escapeHtml(p.name)} ${p.connected ? '' : '（切断）'}</span><span class="coins">${p.coins}🪙</span></h3>
       <div class="small">${idx + 1}番手</div>
       <div class="tags">${landmarks}</div>
       <div class="owned-cards">${builtCards}</div>
     </div>`;
   }).join('');
+}
+
+
+function nonPurpleOwnedOptions(player, selected = '') {
+  if (!player) return '';
+  return Object.entries(player.cards || {})
+    .filter(([id, n]) => n > 0 && state.cards[id] && state.cards[id].color !== 'purple')
+    .sort(([a], [b]) => state.cards[a].name.localeCompare(state.cards[b].name, 'ja'))
+    .map(([id, n]) => `<option value="${id}" ${id === selected ? 'selected' : ''}>${state.cards[id].name}×${n}</option>`)
+    .join('');
+}
+
+function businessChoiceHtml() {
+  const mine = me();
+  const targets = state.players.filter(p => p.id !== myId && Object.entries(p.cards || {}).some(([id, n]) => n > 0 && state.cards[id]?.color !== 'purple'));
+  const firstTarget = targets[0];
+  if (!mine || !nonPurpleOwnedOptions(mine) || !firstTarget) {
+    return `<div class="choice-panel"><h3>ビジネスセンター</h3><p>交換できる施設がありません。</p><button class="secondary" onclick="emitWithMessage('skipPurple')">進む</button></div>`;
+  }
+  return `
+    <div class="choice-panel">
+      <h3>ビジネスセンター：施設を1件ずつ交換</h3>
+      <p class="small">紫カード以外の施設から選びます。</p>
+      <label>自分の施設<select id="businessMyCard">${nonPurpleOwnedOptions(mine)}</select></label>
+      <label>相手<select id="businessTarget" onchange="updateBusinessTargetCards()">${targets.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select></label>
+      <label>相手の施設<select id="businessTargetCard">${nonPurpleOwnedOptions(firstTarget)}</select></label>
+      <div class="actions">
+        <button onclick="submitBusiness()">交換する</button>
+        <button class="secondary" onclick="emitWithMessage('skipPurple')">使わない</button>
+      </div>
+    </div>`;
+}
+
+function updateBusinessTargetCards() {
+  const select = $('businessTarget');
+  const target = state.players.find(p => p.id === select?.value);
+  const cardSelect = $('businessTargetCard');
+  if (cardSelect) cardSelect.innerHTML = nonPurpleOwnedOptions(target);
+}
+
+function submitBusiness() {
+  const myCardId = $('businessMyCard')?.value;
+  const targetId = $('businessTarget')?.value;
+  const targetCardId = $('businessTargetCard')?.value;
+  emitWithMessage('purpleBusiness', { myCardId, targetId, targetCardId });
 }
 
 function renderActions() {
@@ -233,6 +338,41 @@ function renderActions() {
   if (state.status === 'finished') {
     el.innerHTML = '<p>ゲームは終了しました。</p>';
     return;
+  }
+  if (state.rolling) {
+    const count = state.rolling.diceCount || localRollingCount || 1;
+    if (!localRollingCount) startRollingPreview(count);
+    const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
+    const name = escapeHtml(state.rolling.playerName || 'プレイヤー');
+    const label = state.rolling.mode === 'reroll' ? '振り直し中' : 'ダイス';
+    el.innerHTML = `
+      <div class="dice-stage rolling-live"><div class="dice-label">${label}</div><div class="dice-row rolling-row">${previewDice}</div></div>
+      <p>${name} がダイスを振っています。</p>`;
+    return;
+  }
+  if (state.phase === 'purple') {
+    const effect = state.pendingPurple?.current;
+    if (!isMyTurn()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>${escapeHtml(cp?.name || 'プレイヤー')} が紫カードの対象を選んでいます。</p>`;
+      return;
+    }
+    if (effect === 'tv') {
+      const targets = state.players.filter(p => p.id !== myId);
+      el.innerHTML = `
+        <div class="choice-panel">
+          <h3>テレビ局：誰から最大5コインもらいますか？</h3>
+          <div class="choice-buttons">
+            ${targets.map(p => `<button onclick="emitWithMessage('purpleTv', { targetId: '${p.id}' })">${escapeHtml(p.name)}（${p.coins}🪙）</button>`).join('')}
+            <button class="secondary" onclick="emitWithMessage('skipPurple')">使わない</button>
+          </div>
+        </div>`;
+      return;
+    }
+    if (effect === 'business') {
+      el.innerHTML = businessChoiceHtml();
+      return;
+    }
   }
   if (!isMyTurn()) {
     el.innerHTML = '<p>他のプレイヤーの操作を待っています。</p>';
@@ -315,9 +455,9 @@ function renderBuilds() {
     const buttonText = purpleLimit ? '所持済み' : '建設';
     return `<article class="card ${card.color}">
       <h4>${card.name}<span>${card.cost}🪙</span></h4>
-      <p><strong>出目:</strong> ${diceRange(card)} / ${colorText[card.color]}</p>
+      <div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div>
       <p>${cardDescription(id, card)}</p>
-      <p class="stock-line">場の山 ${pile}枚<span>所持 ${owned}</span></p>
+      <p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p>
       <button ${buildDisabled ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${buttonText}</button>
     </article>`;
   }).join('');

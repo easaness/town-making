@@ -76,7 +76,7 @@ function fillMarket(room) {
 function makePlayer(socketId, name) {
   return {
     id: socketId,
-    name: (name || 'Player').slice(0, 18),
+    name: (name || 'ゲスト').slice(0, 18),
     coins: 3,
     cards: { wheat: 1, bakery: 1 },
     landmarks: { station: false, mall: false, amusement: false, tower: false },
@@ -96,10 +96,13 @@ function publicRoom(room) {
     phase: room.phase,
     lastRoll: room.lastRoll,
     pendingRoll: room.pendingRoll,
+    rolling: room.rolling,
     canReroll: room.canReroll,
     pendingExtraTurn: room.pendingExtraTurn,
+    pendingPurple: room.pendingPurple || null,
     winnerId: room.winnerId,
     logs: room.logs.slice(-60),
+    coinEvents: (room.coinEvents || []).slice(-30),
     cards: CARD_DEFS,
     landmarks: LANDMARKS
   };
@@ -111,6 +114,33 @@ function emitRoom(room) {
 
 function log(room, text) {
   room.logs.push({ at: new Date().toISOString(), text });
+}
+
+function coinEvent(room, player, amount, type, label) {
+  if (!room.coinEvents) room.coinEvents = [];
+  room.eventSeq = (room.eventSeq || 0) + 1;
+  room.coinEvents.push({
+    id: room.eventSeq,
+    playerId: player.id,
+    amount,
+    type,
+    label
+  });
+  room.coinEvents = room.coinEvents.slice(-40);
+}
+
+function bankIncome(room, player, amount, label) {
+  gain(player, amount);
+  coinEvent(room, player, amount, 'income', label || '収入');
+}
+
+function stealCoins(room, from, to, amount, label) {
+  const paid = takeCoins(from, to, amount);
+  if (paid > 0) {
+    coinEvent(room, from, -paid, 'stolen', label || '支払い');
+    coinEvent(room, to, paid, 'steal', label || '奪取');
+  }
+  return paid;
 }
 
 function getCurrentPlayer(room) {
@@ -167,7 +197,7 @@ function resolveRoll(room, diceValues) {
       if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
       const base = cardId === 'cafe' ? 1 : 2;
       const each = applyMallBonus(owner, cardId, base);
-      const paid = takeCoins(roller, owner, each * c);
+      const paid = stealCoins(room, roller, owner, each * c, CARD_DEFS[cardId].name);
       if (paid > 0) log(room, `${owner.name} の${CARD_DEFS[cardId].name}：${roller.name} から ${paid} コイン。`);
       if (roller.coins === 0) break;
     }
@@ -182,7 +212,7 @@ function resolveRoll(room, diceValues) {
       const c = count(p, cardId);
       if (c && CARD_DEFS[cardId].dice.includes(total)) {
         const amount = base * c;
-        gain(p, amount);
+        bankIncome(room, p, amount, CARD_DEFS[cardId].name);
         log(room, `${p.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`);
       }
     }
@@ -200,37 +230,62 @@ function resolveRoll(room, diceValues) {
     if (cardId === 'furniture') amount = 3 * (count(roller, 'forest') + count(roller, 'mine')) * c;
     if (cardId === 'market') amount = 2 * (count(roller, 'wheat') + count(roller, 'apple')) * c;
     if (amount > 0) {
-      gain(roller, amount);
+      bankIncome(room, roller, amount, CARD_DEFS[cardId].name);
       log(room, `${roller.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`);
     }
   }
 
-  // Purple cards: roller only.
+  // Purple cards: roller only. Stadium is automatic; TV and Business Center need a player choice.
+  const purpleQueue = [];
   if (total === 6) {
     if (count(roller, 'stadium')) {
       for (let i = 0; i < room.players.length; i++) {
         if (i === rollerIndex) continue;
         const other = room.players[i];
-        const paid = takeCoins(other, roller, 2);
+        const paid = stealCoins(room, other, roller, 2, 'スタジアム');
         if (paid > 0) log(room, `${roller.name} のスタジアム：${other.name} から ${paid} コイン。`);
       }
     }
-    if (count(roller, 'tv')) {
-      const targets = room.players.filter((_, i) => i !== rollerIndex).sort((a, b) => b.coins - a.coins);
-      const target = targets[0];
-      if (target) {
-        const paid = takeCoins(target, roller, 5);
-        if (paid > 0) log(room, `${roller.name} のテレビ局：${target.name} から ${paid} コイン。`);
-      }
-    }
-    if (count(roller, 'business')) {
-      log(room, 'ビジネスセンターの交換効果は、このプロトタイプでは未実装です。');
-    }
+    if (count(roller, 'tv') && room.players.some((_, i) => i !== rollerIndex)) purpleQueue.push('tv');
+    if (count(roller, 'business') && canUseBusinessCenter(room, roller)) purpleQueue.push('business');
   }
 
   room.pendingExtraTurn = diceValues.length === 2 && diceValues[0] === diceValues[1] && has(roller, 'amusement');
   if (room.pendingExtraTurn) log(room, `${roller.name} は遊園地効果で追加ターンを得ます。`);
-  room.phase = 'build';
+  if (purpleQueue.length) {
+    room.pendingPurple = { playerId: roller.id, effects: purpleQueue, current: purpleQueue[0] };
+    room.phase = 'purple';
+    log(room, `${roller.name} は紫カードの対象を選択します。`);
+  } else {
+    room.pendingPurple = null;
+    room.phase = 'build';
+  }
+}
+
+function nonPurpleCardIds(player) {
+  return Object.entries(player.cards || {})
+    .filter(([cardId, n]) => n > 0 && CARD_DEFS[cardId] && CARD_DEFS[cardId].color !== 'purple')
+    .map(([cardId]) => cardId);
+}
+
+function canUseBusinessCenter(room, player) {
+  if (!nonPurpleCardIds(player).length) return false;
+  return room.players.some(p => p.id !== player.id && nonPurpleCardIds(p).length > 0);
+}
+
+function finishCurrentPurple(room) {
+  if (!room.pendingPurple) {
+    room.phase = 'build';
+    return;
+  }
+  room.pendingPurple.effects.shift();
+  if (room.pendingPurple.effects.length) {
+    room.pendingPurple.current = room.pendingPurple.effects[0];
+    room.phase = 'purple';
+  } else {
+    room.pendingPurple = null;
+    room.phase = 'build';
+  }
 }
 
 function advanceTurn(room) {
@@ -242,6 +297,8 @@ function advanceTurn(room) {
   room.phase = 'roll';
   room.lastRoll = null;
   room.pendingRoll = null;
+  room.pendingPurple = null;
+  room.rolling = null;
   room.canReroll = true;
 }
 
@@ -272,9 +329,13 @@ io.on('connection', (socket) => {
       lastRoll: null,
       canReroll: true,
       pendingExtraTurn: false,
+      pendingPurple: null,
       pendingRoll: null,
+      rolling: null,
       winnerId: null,
-      logs: []
+      logs: [],
+      coinEvents: [],
+      eventSeq: 0
     };
     rooms.set(code, room);
     socket.join(code);
@@ -317,20 +378,31 @@ io.on('connection', (socket) => {
   socket.on('rollDice', ({ diceCount }, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'roll') return;
+    if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
     const player = getCurrentPlayer(room);
     if (player.id !== socket.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const countDice = Number(diceCount) === 2 && has(player, 'station') ? 2 : 1;
-    const dice = Array.from({ length: countDice }, () => 1 + Math.floor(Math.random() * 6));
-    if (has(player, 'tower')) {
-      room.pendingRoll = { dice, diceCount: countDice };
-      room.phase = 'reroll';
-      room.canReroll = true;
-      log(room, `${player.name} が ${dice.join(' + ')} = ${dice.reduce((a, b) => a + b, 0)} を出しました。電波塔で振り直すか選べます。`);
-    } else {
-      resolveRoll(room, dice);
-    }
+    room.rolling = { playerId: player.id, playerName: player.name, diceCount: countDice, mode: 'roll', nonce: Date.now() };
     cb?.({ ok: true });
     emitRoom(room);
+
+    setTimeout(() => {
+      const currentRoom = rooms.get(room.code);
+      if (!currentRoom || currentRoom.status !== 'playing' || !currentRoom.rolling || currentRoom.rolling.nonce !== room.rolling?.nonce) return;
+      const currentPlayer = getCurrentPlayer(currentRoom);
+      if (!currentPlayer || currentPlayer.id !== player.id) return;
+      const dice = Array.from({ length: countDice }, () => 1 + Math.floor(Math.random() * 6));
+      currentRoom.rolling = null;
+      if (has(currentPlayer, 'tower')) {
+        currentRoom.pendingRoll = { dice, diceCount: countDice };
+        currentRoom.phase = 'reroll';
+        currentRoom.canReroll = true;
+        log(currentRoom, `${currentPlayer.name} が ${dice.join(' + ')} = ${dice.reduce((a, b) => a + b, 0)} を出しました。電波塔で振り直すか選べます。`);
+      } else {
+        resolveRoll(currentRoom, dice);
+      }
+      emitRoom(currentRoom);
+    }, 1100);
   });
 
   socket.on('acceptRoll', (_payload, cb) => {
@@ -349,13 +421,79 @@ io.on('connection', (socket) => {
   socket.on('rerollDice', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'reroll' || !room.pendingRoll || !room.canReroll) return;
+    if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
     const player = getCurrentPlayer(room);
     if (player.id !== socket.id || !has(player, 'tower')) return cb?.({ ok: false, message: '振り直しできません。' });
-    const dice = Array.from({ length: room.pendingRoll.diceCount }, () => 1 + Math.floor(Math.random() * 6));
-    room.pendingRoll = null;
-    room.canReroll = false;
-    log(room, `${player.name} が電波塔で振り直しました。`);
-    resolveRoll(room, dice);
+    const countDice = room.pendingRoll.diceCount;
+    room.rolling = { playerId: player.id, playerName: player.name, diceCount: countDice, mode: 'reroll', nonce: Date.now() };
+    cb?.({ ok: true });
+    emitRoom(room);
+
+    setTimeout(() => {
+      const currentRoom = rooms.get(room.code);
+      if (!currentRoom || currentRoom.status !== 'playing' || !currentRoom.rolling || currentRoom.rolling.nonce !== room.rolling?.nonce) return;
+      const currentPlayer = getCurrentPlayer(currentRoom);
+      if (!currentPlayer || currentPlayer.id !== player.id) return;
+      const dice = Array.from({ length: countDice }, () => 1 + Math.floor(Math.random() * 6));
+      currentRoom.rolling = null;
+      currentRoom.pendingRoll = null;
+      currentRoom.canReroll = false;
+      log(currentRoom, `${currentPlayer.name} が電波塔で振り直しました。`);
+      resolveRoll(currentRoom, dice);
+      emitRoom(currentRoom);
+    }, 1100);
+  });
+
+
+  socket.on('purpleTv', ({ targetId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'tv') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.id || room.pendingPurple.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const target = room.players.find(p => p.id === targetId && p.id !== player.id);
+    if (!target) return cb?.({ ok: false, message: '対象プレイヤーを選んでください。' });
+    const paid = stealCoins(room, target, player, 5, 'テレビ局');
+    if (paid > 0) log(room, `${player.name} のテレビ局：${target.name} から ${paid} コイン。`);
+    else log(room, `${player.name} のテレビ局：${target.name} からコインを得られませんでした。`);
+    finishCurrentPurple(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('purpleBusiness', ({ myCardId, targetId, targetCardId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'business') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.id || room.pendingPurple.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const target = room.players.find(p => p.id === targetId && p.id !== player.id);
+    if (!target) return cb?.({ ok: false, message: '交換相手を選んでください。' });
+    const myCard = CARD_DEFS[myCardId];
+    const targetCard = CARD_DEFS[targetCardId];
+    if (!myCard || !targetCard) return cb?.({ ok: false, message: '交換カードを選んでください。' });
+    if (myCard.color === 'purple' || targetCard.color === 'purple') return cb?.({ ok: false, message: 'ビジネスセンターでは紫カード以外の施設を選んでください。' });
+    if (count(player, myCardId) <= 0 || count(target, targetCardId) <= 0) return cb?.({ ok: false, message: '選んだ施設がありません。' });
+    if (myCardId === targetCardId) return cb?.({ ok: false, message: '同じ施設同士は交換できません。' });
+
+    player.cards[myCardId] -= 1;
+    if (player.cards[myCardId] <= 0) delete player.cards[myCardId];
+    target.cards[targetCardId] -= 1;
+    if (target.cards[targetCardId] <= 0) delete target.cards[targetCardId];
+    player.cards[targetCardId] = count(player, targetCardId) + 1;
+    target.cards[myCardId] = count(target, myCardId) + 1;
+    log(room, `${player.name} のビジネスセンター：${player.name} の${myCard.name}と ${target.name} の${targetCard.name}を交換しました。`);
+    finishCurrentPurple(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('skipPurple', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'purple') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.id || room.pendingPurple?.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const label = room.pendingPurple.current === 'tv' ? 'テレビ局' : 'ビジネスセンター';
+    log(room, `${player.name} は${label}の効果を使いませんでした。`);
+    finishCurrentPurple(room);
     cb?.({ ok: true });
     emitRoom(room);
   });

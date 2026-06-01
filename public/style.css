@@ -636,7 +636,10 @@ button.secondary.danger:hover { background: #881337; }
   .hero { padding: 18px; border-radius: 22px; align-items: stretch; }
   .room-badge { border-radius: 18px; flex-wrap: wrap; justify-content: flex-start; white-space: normal; }
   .panel { padding: 15px; border-radius: 18px; }
-  .topbar { position: sticky; top: 8px; z-index: 10; backdrop-filter: blur(10px); }
+  .topbar { position: static; z-index: auto; backdrop-filter: none; }
+  .topbar #statusTitle { font-size: 1.05rem; margin-bottom: 4px; }
+  .topbar #statusText { font-size: .86rem; line-height: 1.35; }
+  .turn-banner:not(.amusement) { display: none !important; }
   #turnActions { display: grid; gap: 10px; }
   #turnActions .actions {
     position: fixed;

@@ -551,9 +551,6 @@ function renderStatus() {
     turnBanner.innerHTML = myTurnNow
       ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
       : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
-  } else if (turnBanner && myTurnNow) {
-    turnBanner.classList.remove('hidden');
-    turnBanner.innerHTML = '<strong>あなたの番です</strong><span>ダイス・選択・建設を進めてください</span>';
   }
   const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';

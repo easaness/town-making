@@ -29,20 +29,77 @@ if (initialRoomFromUrl) {
 }
 
 socket.on('connect', () => {
-  const savedCode = localStorage.getItem('machikoroRoomCode');
-  const savedPlayerId = localStorage.getItem('machikoroPlayerId');
-  if (savedPlayerId) myId = savedPlayerId;
-  if (savedCode && savedPlayerId) {
-    socket.emit('reconnectPlayer', { code: savedCode, playerId: savedPlayerId }, (res) => {
-      if (res?.ok) {
-        rememberSession(res.code, res.playerId);
-        showMessage('再接続しました。');
-      } else {
-        showMessage('前回のルームに自動復帰できませんでした。サーバー側の保存がない場合は新しいルームを作成してください。');
-      }
-    });
+  tryAutoReconnect();
+});
+
+socket.on('roomBackup', (snapshot) => {
+  if (!snapshot?.code || !myId || snapshot.hostId !== myId) return;
+  try {
+    localStorage.setItem(`machikoroRoomBackup:${snapshot.code}`, JSON.stringify(snapshot));
+    localStorage.setItem('machikoroLastBackupCode', snapshot.code);
+  } catch (_err) {
+    // localStorageの容量不足などでは、通常プレイを優先します。
   }
 });
+
+function tryAutoReconnect(attempt = 1) {
+  const savedCode = localStorage.getItem('machikoroRoomCode');
+  const savedPlayerId = localStorage.getItem('machikoroPlayerId');
+  const savedName = localStorage.getItem('machikoroPlayerName') || $('nameInput')?.value.trim() || '';
+  if (savedPlayerId) myId = savedPlayerId;
+  if (!savedCode || !savedPlayerId) return;
+  socket.emit('reconnectPlayer', { code: savedCode, playerId: savedPlayerId, name: savedName }, (res) => {
+    if (res?.ok) {
+      rememberSession(res.code, res.playerId, savedName);
+      showMessage(res.message || '再接続しました。');
+      return;
+    }
+    if (attempt < 3) {
+      setTimeout(() => tryAutoReconnect(attempt + 1), 700);
+      return;
+    }
+    if (isRoomMissing(res)) {
+      return restoreRoomFromLocalBackup(savedCode, savedPlayerId, savedName, true);
+    }
+    const input = $('codeInput');
+    if (input) input.value = savedCode;
+    showMessage(res?.message || '前回のルームに自動復帰できませんでした。ルームコードを入れて参加を押すと復帰を再試行します。');
+  });
+}
+
+function isRoomMissing(res) {
+  return String(res?.message || '').includes('ルームが見つかりません');
+}
+
+function getLocalRoomBackup(code) {
+  try {
+    const raw = localStorage.getItem(`machikoroRoomBackup:${code}`);
+    return raw ? JSON.parse(raw) : null;
+  } catch (_err) {
+    return null;
+  }
+}
+
+function restoreRoomFromLocalBackup(code, playerId, name, fromAutoReconnect = false) {
+  const backup = getLocalRoomBackup(code);
+  if (!backup) {
+    const input = $('codeInput');
+    if (input) input.value = code || '';
+    showMessage('サーバー側に部屋がありません。ホストが同じブラウザで入り直すと復元できる場合があります。');
+    return false;
+  }
+  socket.emit('restoreRoomFromBackup', { snapshot: backup, playerId, name }, (restoreRes) => {
+    if (restoreRes?.ok) {
+      rememberSession(restoreRes.code, restoreRes.playerId, name);
+      showMessage(restoreRes.message || 'ルームを復元しました。');
+      return;
+    }
+    const input = $('codeInput');
+    if (input) input.value = code || '';
+    showMessage(restoreRes?.message || (fromAutoReconnect ? '自動復元できませんでした。ホストに入り直してもらってください。' : 'ルームを復元できませんでした。'));
+  });
+  return true;
+}
 socket.on('state', (next) => {
   syncCoinEvents(next);
   syncSpecialEvents(next);
@@ -231,16 +288,19 @@ function emitWithMessage(event, payload = {}) {
   });
 }
 
-function rememberSession(code, playerId) {
+function rememberSession(code, playerId, name) {
   if (!code || !playerId) return;
   myId = playerId;
   localStorage.setItem('machikoroRoomCode', code);
   localStorage.setItem('machikoroPlayerId', playerId);
+  const cleanName = name || $('nameInput')?.value.trim();
+  if (cleanName) localStorage.setItem('machikoroPlayerName', cleanName);
 }
 
 function clearSavedSession() {
   localStorage.removeItem('machikoroRoomCode');
   localStorage.removeItem('machikoroPlayerId');
+  localStorage.removeItem('machikoroPlayerName');
 }
 
 
@@ -304,21 +364,33 @@ function showMessage(text) {
 $('createBtn').onclick = () => {
   socket.emit('createRoom', { name: $('nameInput').value.trim() || 'ゲスト' }, (res) => {
     if (!res?.ok) return showMessage(res?.message || 'ルームを作成できませんでした。');
-    rememberSession(res.code, res.playerId);
+    rememberSession(res.code, res.playerId, $('nameInput').value.trim() || 'ゲスト');
   });
 };
 $('joinBtn').onclick = () => {
   const code = $('codeInput').value.trim().toUpperCase();
   if (!code) return showMessage('ルームコードを入力してください。');
-  socket.emit('joinRoom', { code, name: $('nameInput').value.trim() || 'ゲスト' }, (res) => {
-    if (!res?.ok) return showMessage(res?.message || '参加できませんでした。');
+  const name = $('nameInput').value.trim() || 'ゲスト';
+  const savedCode = localStorage.getItem('machikoroRoomCode');
+  const savedPlayerId = localStorage.getItem('machikoroPlayerId');
+  const playerId = savedCode === code ? savedPlayerId : null;
+  socket.emit('joinRoom', { code, name, playerId }, (res) => {
+    if (!res?.ok) {
+      if (isRoomMissing(res) && playerId && restoreRoomFromLocalBackup(code, playerId, name)) return;
+      return showMessage(res?.message || '参加できませんでした。');
+    }
     if (res.spectator) {
+      // 別ルームを観戦する場合だけプレイヤー復帰情報を消す。同じルームの復帰情報は残す。
       myId = null;
       localStorage.setItem('machikoroRoomCode', res.code);
-      localStorage.removeItem('machikoroPlayerId');
+      if (savedCode && savedCode !== res.code) {
+        localStorage.removeItem('machikoroPlayerId');
+        localStorage.removeItem('machikoroPlayerName');
+      }
       showMessage('観戦者として参加しました。');
     } else {
-      rememberSession(res.code, res.playerId);
+      rememberSession(res.code, res.playerId, name);
+      showMessage(res.reconnected ? '元のプレイヤーとして復帰しました。' : '参加しました。');
     }
   });
 };
@@ -559,9 +631,39 @@ function renderStatus() {
   const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
   const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
   $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}`)}</span>`;
+  renderRollNotice();
   renderRecentNotice();
 }
 
+function rollOwnerName(roll) {
+  if (!roll) return 'プレイヤー';
+  if (roll.playerName) return roll.playerName;
+  const p = state?.players?.find(player => player.id === roll.playerId);
+  return p?.name || 'プレイヤー';
+}
+
+function renderRollNotice() {
+  const el = $('rollNotice');
+  if (!el || !state || state.status === 'waiting' || state.status === 'finished') return;
+  if (state.rolling) {
+    const mine = state.rolling.playerId === myId;
+    el.className = `roll-notice rolling ${mine ? 'mine' : 'opponent'}`;
+    el.innerHTML = `<strong>${mine ? 'あなたがダイスを振っています' : `${escapeHtml(state.rolling.playerName || 'プレイヤー')} がダイスを振っています`}</strong><span>結果待ち</span>`;
+    return;
+  }
+  const roll = state.lastRoll || state.pendingRoll;
+  if (!roll?.dice?.length) {
+    el.classList.add('hidden');
+    return;
+  }
+  const mine = roll.playerId === myId;
+  const name = rollOwnerName(roll);
+  const dice = roll.dice.map((d, i) => diceFace(d, `notice-die d${i + 1}`)).join('');
+  const label = mine ? 'あなたの出目' : `${escapeHtml(name)} の出目`;
+  const fresh = diceJustChanged ? ' fresh' : '';
+  el.className = `roll-notice ${mine ? 'mine' : 'opponent'}${fresh}`;
+  el.innerHTML = `<div><strong>${label}</strong><span>${escapeHtml(roll.dice.join(' + '))} = ${roll.total}</span></div><div class="roll-notice-dice">${dice}<b>${roll.total}</b></div>`;
+}
 
 function latestNoticeEvent() {
   const now = Date.now();

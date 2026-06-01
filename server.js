@@ -212,6 +212,8 @@ function emitRoom(room) {
   room.lastUpdatedAt = Date.now();
   scheduleSaveRooms();
   io.to(room.code).emit('state', publicRoom(room));
+  const host = room.players.find(p => p.id === room.hostId && p.connected && p.socketId);
+  if (host) io.to(host.socketId).emit('roomBackup', roomSnapshot(room));
 }
 
 function log(room, text) {
@@ -303,7 +305,7 @@ function resolveRoll(room, diceValues) {
   const total = diceValues.reduce((a, b) => a + b, 0);
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
-  room.lastRoll = { dice: diceValues, total, playerId: roller.id };
+  room.lastRoll = { dice: diceValues, total, playerId: roller.id, playerName: roller.name };
   log(room, `${roller.name} が ${diceValues.join(' + ')} = ${total} を出しました。`);
 
   // Red cards: payments to other players first, counterclockwise.
@@ -455,12 +457,33 @@ function checkWinner(room, player) {
   }
 }
 
+
+function reconnectPlayerToRoom(socket, room, player, cb, message = '再接続しました。') {
+  player.connected = true;
+  player.socketId = socket.id;
+  socket.join(room.code);
+  socket.data.roomCode = room.code;
+  socket.data.playerId = player.id;
+  socket.data.isSpectator = false;
+  socket.data.spectatorId = null;
+  log(room, `${player.name} が再接続しました。`);
+  cb?.({ ok: true, code: room.code, playerId: player.id, reconnected: true, message });
+  emitRoom(room);
+}
+
+function findRecoverablePlayer(room, name) {
+  const cleanName = (name || '').trim();
+  if (!cleanName) return null;
+  const matches = room.players.filter(p => !p.connected && p.name === cleanName);
+  return matches.length === 1 ? matches[0] : null;
+}
+
 io.on('connection', (socket) => {
   socket.on('createRoom', ({ name }, cb) => {
     let code = roomCode();
     while (rooms.has(code)) code = roomCode();
-    const playerId = randomUUID();
-    const player = makePlayer(playerId, name, socket.id);
+    const newPlayerId = randomUUID();
+    const player = makePlayer(newPlayerId, name, socket.id);
     const room = {
       code,
       hostId: player.id,
@@ -493,24 +516,56 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('reconnectPlayer', ({ code, playerId }, cb) => {
-    const room = rooms.get((code || '').toUpperCase());
-    if (!room || !playerId) return cb?.({ ok: false });
-    const player = room.players.find(p => p.id === playerId);
-    if (!player) return cb?.({ ok: false });
-    player.connected = true;
-    player.socketId = socket.id;
-    socket.join(room.code);
-    socket.data.roomCode = room.code;
-    socket.data.playerId = player.id;
-    log(room, `${player.name} が再接続しました。`);
-    cb?.({ ok: true, code: room.code, playerId: player.id });
-    emitRoom(room);
+
+  socket.on('restoreRoomFromBackup', ({ snapshot, playerId, name }, cb) => {
+    const code = (snapshot?.code || '').toUpperCase();
+    if (!code) return cb?.({ ok: false, message: '復元できるルーム情報がありません。' });
+
+    const existing = rooms.get(code);
+    if (existing) {
+      let player = playerId ? existing.players.find(p => p.id === playerId) : null;
+      if (!player) player = findRecoverablePlayer(existing, name);
+      if (!player) return cb?.({ ok: false, message: 'ルームはありますが、元のプレイヤー情報が見つかりません。' });
+      return reconnectPlayerToRoom(socket, existing, player, cb, '既存ルームに再接続しました。');
+    }
+
+    const restored = normalizeLoadedRoom(snapshot);
+    if (!restored || restored.code !== code) {
+      return cb?.({ ok: false, message: '保存されているルーム情報が壊れています。' });
+    }
+
+    const player = playerId ? restored.players.find(p => p.id === playerId) : null;
+    if (!player || player.id !== restored.hostId) {
+      return cb?.({ ok: false, message: 'サーバーから部屋が消えています。ホストが同じブラウザで入り直すと復元できます。' });
+    }
+
+    restored.code = code;
+    restored.lastUpdatedAt = Date.now();
+    rooms.set(code, restored);
+    log(restored, 'ホストのブラウザ保存データからルームを復元しました。');
+    reconnectPlayerToRoom(socket, restored, player, cb, 'ルームを復元して再接続しました。');
   });
 
-  socket.on('joinRoom', ({ code, name }, cb) => {
+  socket.on('reconnectPlayer', ({ code, playerId, name }, cb) => {
     const room = rooms.get((code || '').toUpperCase());
     if (!room) return cb?.({ ok: false, message: 'ルームが見つかりません。' });
+    let player = playerId ? room.players.find(p => p.id === playerId) : null;
+    if (!player) player = findRecoverablePlayer(room, name);
+    if (!player) return cb?.({ ok: false, message: '元のプレイヤー情報が見つかりません。ルームコードと名前を確認してください。' });
+    reconnectPlayerToRoom(socket, room, player, cb);
+  });
+
+  socket.on('joinRoom', ({ code, name, playerId }, cb) => {
+    const room = rooms.get((code || '').toUpperCase());
+    if (!room) return cb?.({ ok: false, message: 'ルームが見つかりません。' });
+
+    // 途中で落ちたプレイヤーが「参加」ボタンを押しても、観戦者に落とさず元の席へ戻す。
+    const savedPlayer = playerId ? room.players.find(p => p.id === playerId) : null;
+    const nameRecoveredPlayer = !savedPlayer && room.status !== 'waiting' ? findRecoverablePlayer(room, name) : null;
+    if (savedPlayer || nameRecoveredPlayer) {
+      return reconnectPlayerToRoom(socket, room, savedPlayer || nameRecoveredPlayer, cb);
+    }
+
     if (room.status !== 'waiting') {
       const spectatorId = randomUUID();
       const spectator = { id: spectatorId, socketId: socket.id, name: (name || '観戦者').slice(0, 18), connected: true };
@@ -526,8 +581,8 @@ io.on('connection', (socket) => {
       return;
     }
     if (room.players.length >= 4) return cb?.({ ok: false, message: 'このルームは満員です。' });
-    const playerId = randomUUID();
-    const player = makePlayer(playerId, name, socket.id);
+    const newPlayerId = randomUUID();
+    const player = makePlayer(newPlayerId, name, socket.id);
     room.players.push(player);
     socket.join(room.code);
     socket.data.roomCode = room.code;

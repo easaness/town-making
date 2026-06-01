@@ -508,3 +508,70 @@ button:disabled { opacity: .45; cursor: not-allowed; }
 @media (prefers-reduced-motion: reduce) {
   .turn-banner, .victory-banner { animation: none; }
 }
+
+/* Polish pass: guidance, activated card highlight, result table */
+#statusText strong {
+  display: inline-block;
+  margin-bottom: 4px;
+  color: #7c2d12;
+  font-size: 1.02rem;
+}
+#statusText span {
+  color: var(--muted);
+}
+.card.triggered,
+.owned-card.triggered {
+  position: relative;
+  outline: 3px solid #f59e0b;
+  box-shadow: 0 0 0 6px rgba(245, 158, 11, .16), 0 12px 28px rgba(146, 64, 14, .18);
+  animation: card-trigger-pulse 1.15s ease-in-out infinite;
+}
+.triggered-label {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: fit-content;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #ffedd5;
+  border: 1px solid #fb923c;
+  color: #9a3412;
+  font-weight: 1000;
+  font-size: .78rem;
+}
+@keyframes card-trigger-pulse {
+  0%, 100% { transform: translateY(0); filter: brightness(1); }
+  50% { transform: translateY(-2px); filter: brightness(1.04); }
+}
+.result-box {
+  display: grid;
+  gap: 10px;
+  padding: 14px;
+  border-radius: 16px;
+  border: 1px solid #facc15;
+  background: #fffbeb;
+}
+.result-box h3 { margin: 0; }
+.result-table {
+  width: 100%;
+  border-collapse: collapse;
+  overflow: hidden;
+  border-radius: 12px;
+  background: white;
+}
+.result-table th,
+.result-table td {
+  padding: 9px 10px;
+  border-bottom: 1px solid #f2e8c8;
+  text-align: left;
+  font-size: .9rem;
+}
+.result-table th {
+  background: #fef3c7;
+  color: #78350f;
+}
+.result-table tr:last-child td { border-bottom: 0; }
+@media (prefers-reduced-motion: reduce) {
+  .card.triggered,
+  .owned-card.triggered { animation: none; }
+}

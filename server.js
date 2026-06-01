@@ -153,6 +153,31 @@ function makePlayer(playerId, name, socketId) {
   };
 }
 
+
+function resetPlayerForNewGame(player) {
+  player.coins = 3;
+  player.cards = { wheat: 1, bakery: 1 };
+  player.landmarks = { station: false, mall: false, amusement: false, tower: false };
+}
+
+function resetRoomToWaiting(room) {
+  room.players.forEach(resetPlayerForNewGame);
+  room.status = 'waiting';
+  room.currentPlayerIndex = 0;
+  room.deck = [];
+  room.market = {};
+  room.phase = 'waiting';
+  room.lastRoll = null;
+  room.canReroll = true;
+  room.pendingExtraTurn = false;
+  room.pendingPurple = null;
+  room.pendingRoll = null;
+  room.rolling = null;
+  room.winnerId = null;
+  room.coinEvents = [];
+  room.specialEvents = [];
+}
+
 function publicRoom(room) {
   return {
     code: room.code,
@@ -660,6 +685,16 @@ io.on('connection', (socket) => {
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     log(room, `${player.name} は建設せずに手番を終えました。`);
     advanceTurn(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('resetRoom', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room) return;
+    if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ再戦できます。' });
+    resetRoomToWaiting(room);
+    log(room, '同じメンバーで再戦準備に戻しました。');
     cb?.({ ok: true });
     emitRoom(room);
   });

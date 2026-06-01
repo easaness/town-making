@@ -20,6 +20,12 @@ let soundEnabled = true;
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
 
+const initialRoomFromUrl = new URLSearchParams(location.search).get('room');
+if (initialRoomFromUrl) {
+  const input = $('codeInput');
+  if (input) input.value = initialRoomFromUrl.toUpperCase();
+}
+
 socket.on('connect', () => {
   const savedCode = localStorage.getItem('machikoroRoomCode');
   const savedPlayerId = localStorage.getItem('machikoroPlayerId');
@@ -306,6 +312,7 @@ $('joinBtn').onclick = () => {
 };
 $('startBtn').onclick = () => emitWithMessage('startGame');
 $('copyRoomCodeBtn').onclick = copyRoomCode;
+$('copyInviteBtn').onclick = copyInviteLink;
 $('soundToggleBtn').onclick = toggleSound;
 
 async function copyRoomCode() {
@@ -327,6 +334,68 @@ async function copyRoomCode() {
   }
 }
 
+
+async function copyInviteLink() {
+  if (!state?.code) return showMessage('コピーできるルームコードがありません。');
+  const url = `${location.origin}${location.pathname}?room=${encodeURIComponent(state.code)}`;
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(url);
+    } else {
+      const input = document.createElement('input');
+      input.value = url;
+      document.body.appendChild(input);
+      input.select();
+      document.execCommand('copy');
+      input.remove();
+    }
+    showMessage('招待リンクをコピーしました。');
+  } catch (err) {
+    showMessage(`コピーできませんでした。リンク: ${url}`);
+  }
+}
+
+function phaseGuideText() {
+  if (!state) return '';
+  const cp = currentPlayer();
+  const mine = isMyTurn();
+  if (state.status === 'waiting') return state.hostId === myId ? 'ゲーム開始を押してください。友人を待つ場合はルームコードか招待リンクを共有してください。' : 'ホストがゲームを開始するまで待機してください。';
+  if (state.status === 'finished') return state.winnerId === myId ? 'あなたの勝利です。ホストは同じメンバーでもう一度遊べます。' : 'ゲーム終了です。ホストがもう一度遊ぶを押すと同じ部屋で再戦できます。';
+  if (state.rolling) return `${state.rolling.playerName || 'プレイヤー'} がダイスを振っています。結果を待ってください。`;
+  if (!mine) {
+    if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
+    if (state.phase === 'build') return `${cp?.name || 'プレイヤー'} が建設するか選んでいます。`;
+    return `${cp?.name || 'プレイヤー'} の操作待ちです。`;
+  }
+  if (state.phase === 'roll') return 'ダイスを振ってください。駅が完成していれば2個も選べます。';
+  if (state.phase === 'reroll') return '電波塔で振り直すか、この出目で進めるか選んでください。';
+  if (state.phase === 'purple') return '紫カードの対象を選んでください。';
+  if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
+  return '';
+}
+
+function isTriggeredCard(card) {
+  return Boolean(state?.lastRoll?.total && card?.dice?.includes(state.lastRoll.total) && ['build', 'purple', 'reroll'].includes(state.phase));
+}
+
+function buildDisableReason(card, owned, affordable, canBuild) {
+  if (!canBuild) return '今は建設不可';
+  if (!affordable) return 'コイン不足';
+  if (card.color === 'purple' && owned >= 1) return '所持済み';
+  return '';
+}
+
+function resultTableHtml() {
+  if (!state?.players?.length) return '';
+  const rows = [...state.players]
+    .sort((a, b) => Object.values(b.landmarks).filter(Boolean).length - Object.values(a.landmarks).filter(Boolean).length || b.coins - a.coins)
+    .map((p, i) => {
+      const lm = Object.values(p.landmarks || {}).filter(Boolean).length;
+      const built = Object.values(p.cards || {}).reduce((a, b) => a + b, 0);
+      return `<tr><td>${i + 1}</td><td>${escapeHtml(p.name)}</td><td>${lm}/4</td><td>${p.coins}🪙</td><td>${built}</td></tr>`;
+    }).join('');
+  return `<div class="result-box"><h3>リザルト</h3><table class="result-table"><thead><tr><th>#</th><th>プレイヤー</th><th>ランドマーク</th><th>コイン</th><th>施設</th></tr></thead><tbody>${rows}</tbody></table></div>`;
+}
 
 function diceStateKey(next) {
   const roll = next?.pendingRoll || next?.lastRoll;
@@ -469,7 +538,7 @@ function renderStatus() {
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
-  $('statusText').textContent = `${phaseText}${rollingText}${rollText} / あなた: ${m?.coins ?? 0} コイン${marketText}`;
+  $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText} / あなた: ${m?.coins ?? 0} コイン${marketText}`)}</span>`;
 }
 
 function renderPlayers() {
@@ -478,12 +547,14 @@ function renderPlayers() {
       .filter(([, n]) => n > 0)
       .map(([id, n]) => {
         const card = state.cards[id];
-        return `<div class="owned-card ${card.color}">
+        const triggered = isTriggeredCard(card);
+        return `<div class="owned-card ${card.color} ${triggered ? 'triggered' : ''}">
           <div class="owned-card-head">
             <strong>${card.name}×${n}</strong>
             ${smallCardMeta(card)}
           </div>
           <div class="owned-trigger-row"><span>発動</span>${diceBadges(card)}</div>
+          ${triggered ? '<div class="triggered-label">今回発動</div>' : ''}
           <div class="owned-card-effect">${cardDescription(id, card)}</div>
         </div>`;
       }).join('') || '<div class="small empty-owned">建築済み施設はまだありません。</div>';
@@ -550,11 +621,12 @@ function submitBusiness() {
 function renderActions() {
   const el = $('turnActions');
   if (state.status === 'waiting') {
-    el.innerHTML = '<p>ホストがゲームを開始するまで待機してください。</p>';
+    el.innerHTML = `<p>${escapeHtml(phaseGuideText())}</p><div class="actions"><button class="secondary" onclick="copyInviteLink()">招待リンクをコピー</button>${state.hostId === myId ? '<button onclick="emitWithMessage(\'startGame\')">ゲーム開始</button>' : ''}</div>`;
     return;
   }
   if (state.status === 'finished') {
-    el.innerHTML = '<p>ゲームは終了しました。</p>';
+    const hostActions = state.hostId === myId ? '<div class="actions"><button onclick="emitWithMessage(\'resetRoom\')">同じメンバーでもう一度遊ぶ</button></div>' : '<p>ホストが再戦を開始できます。</p>';
+    el.innerHTML = `${resultTableHtml()}${hostActions}`;
     return;
   }
   if (state.rolling) {
@@ -668,12 +740,14 @@ function renderBuilds() {
     const card = state.cards[id];
     const owned = m?.cards[id] || 0;
     const affordable = (m?.coins || 0) >= card.cost;
-    const purpleLimit = card.color === 'purple' && owned >= 1;
-    const buildDisabled = !canBuild || !affordable || purpleLimit;
-    const buttonText = purpleLimit ? '所持済み' : '建設';
-    return `<article class="card ${card.color}">
+    const reason = buildDisableReason(card, owned, affordable, canBuild);
+    const buildDisabled = Boolean(reason);
+    const buttonText = reason || '建設';
+    const triggered = isTriggeredCard(card);
+    return `<article class="card ${card.color} ${triggered ? 'triggered' : ''}">
       <h4>${card.name}<span>${card.cost}🪙</span></h4>
       <div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div>
+      ${triggered ? '<div class="triggered-label">今回の出目で発動</div>' : ''}
       <p>${cardDescription(id, card)}</p>
       <p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p>
       <button ${buildDisabled ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${buttonText}</button>

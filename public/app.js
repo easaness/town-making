@@ -3,6 +3,7 @@ let state = null;
 let myId = null;
 let lastDiceKey = '';
 let diceJustChanged = false;
+let localRollingCount = 0;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
@@ -13,6 +14,7 @@ socket.on('state', (next) => {
   diceJustChanged = Boolean(nextKey && nextKey !== lastDiceKey);
   lastDiceKey = nextKey;
   state = next;
+  localRollingCount = 0;
   render();
   if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); }, 900);
 });
@@ -21,6 +23,13 @@ function emitWithMessage(event, payload = {}) {
   socket.emit(event, payload, (res) => {
     if (res && !res.ok) showMessage(res.message || '操作できませんでした。');
   });
+}
+
+
+function rollDice(count) {
+  localRollingCount = count;
+  renderActions();
+  emitWithMessage('rollDice', { diceCount: count });
 }
 
 function showMessage(text) {
@@ -67,7 +76,7 @@ function diceFace(value, extraClass = '') {
 
 function diceTray(roll, label = '出目') {
   if (!roll) return '<div class="dice-stage idle"><span>ダイス待ち</span></div>';
-  const rolling = diceJustChanged ? 'rolling' : 'settled';
+  const rolling = diceJustChanged ? 'rolling-live' : 'settled';
   const dice = roll.dice.map((d, i) => diceFace(d, `${rolling} d${i + 1}`)).join('');
   return `<div class="dice-stage ${rolling}">
     <div class="dice-label">${label}</div>
@@ -186,12 +195,18 @@ function renderActions() {
   const m = me();
   if (state.phase === 'roll') {
     const canTwo = m.landmarks.station;
+    if (localRollingCount) {
+      const previewDice = Array.from({ length: localRollingCount }, (_, i) => diceFace(((i * 2) % 6) + 1, `rolling-live d${i + 1}`)).join('');
+      el.innerHTML = `
+        <div class="dice-stage rolling-live"><div class="dice-label">ダイス</div><div class="dice-row">${previewDice}</div><div class="dice-total">判定中</div></div>`;
+      return;
+    }
     el.innerHTML = `
-      <div class="dice-stage ready"><div class="dice-label">ダイス準備</div><div class="dice-row">${diceFace(1, 'ready')} ${diceFace(2, 'ready')}</div><div class="dice-total">勢いよく振ろう</div></div>
-      <p>ダイスを選んで振ってください。</p>
+      <div class="dice-stage ready"><div class="dice-label">ダイス</div><div class="dice-row">${diceFace(1, 'ready')}</div></div>
+      <p>振るダイスを選んでください。</p>
       <div class="actions">
-        <button onclick="emitWithMessage('rollDice', { diceCount: 1 })">1個振る</button>
-        <button ${canTwo ? '' : 'disabled'} onclick="emitWithMessage('rollDice', { diceCount: 2 })">2個振る（駅）</button>
+        <button onclick="rollDice(1)">1個振る</button>
+        <button ${canTwo ? '' : 'disabled'} onclick="rollDice(2)">2個振る（駅）</button>
       </div>`;
     return;
   }

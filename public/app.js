@@ -1,12 +1,21 @@
 const socket = io();
 let state = null;
 let myId = null;
+let lastDiceKey = '';
+let diceJustChanged = false;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
 
 socket.on('connect', () => { myId = socket.id; });
-socket.on('state', (next) => { state = next; render(); });
+socket.on('state', (next) => {
+  const nextKey = diceStateKey(next);
+  diceJustChanged = Boolean(nextKey && nextKey !== lastDiceKey);
+  lastDiceKey = nextKey;
+  state = next;
+  render();
+  if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); }, 900);
+});
 
 function emitWithMessage(event, payload = {}) {
   socket.emit(event, payload, (res) => {
@@ -32,6 +41,40 @@ $('joinBtn').onclick = () => {
   emitWithMessage('joinRoom', { code, name: $('nameInput').value.trim() || 'Player' });
 };
 $('startBtn').onclick = () => emitWithMessage('startGame');
+
+
+function diceStateKey(next) {
+  const roll = next?.pendingRoll || next?.lastRoll;
+  if (!roll) return '';
+  return `${next.phase}:${roll.dice.join('-')}:${roll.total}`;
+}
+
+function diceFace(value, extraClass = '') {
+  const pipMap = {
+    1: [5],
+    2: [1, 9],
+    3: [1, 5, 9],
+    4: [1, 3, 7, 9],
+    5: [1, 3, 5, 7, 9],
+    6: [1, 3, 4, 6, 7, 9]
+  };
+  const pips = Array.from({ length: 9 }, (_, i) => {
+    const pos = i + 1;
+    return `<i class="${pipMap[value]?.includes(pos) ? 'on' : ''}"></i>`;
+  }).join('');
+  return `<span class="dice-face ${extraClass}" aria-label="${value}">${pips}</span>`;
+}
+
+function diceTray(roll, label = '出目') {
+  if (!roll) return '<div class="dice-stage idle"><span>ダイス待ち</span></div>';
+  const rolling = diceJustChanged ? 'rolling' : 'settled';
+  const dice = roll.dice.map((d, i) => diceFace(d, `${rolling} d${i + 1}`)).join('');
+  return `<div class="dice-stage ${rolling}">
+    <div class="dice-label">${label}</div>
+    <div class="dice-row">${dice}</div>
+    <div class="dice-total">合計 <strong>${roll.total}</strong></div>
+  </div>`;
+}
 
 function currentPlayer() {
   if (!state) return null;
@@ -103,16 +146,25 @@ function renderStatus() {
 
 function renderPlayers() {
   $('players').innerHTML = state.players.map((p, idx) => {
-    const cards = Object.entries(p.cards)
+    const builtCards = Object.entries(p.cards)
       .filter(([, n]) => n > 0)
-      .map(([id, n]) => `<span class="tag">${state.cards[id].name}×${n}</span>`).join('');
+      .map(([id, n]) => {
+        const card = state.cards[id];
+        return `<div class="owned-card ${card.color}">
+          <div class="owned-card-head">
+            <strong>${card.name}×${n}</strong>
+            <span>${diceRange(card)} / ${colorText[card.color]}</span>
+          </div>
+          <div class="owned-card-effect">${cardDescription(id, card)}</div>
+        </div>`;
+      }).join('') || '<div class="small empty-owned">建築済み施設はまだありません。</div>';
     const landmarks = Object.entries(p.landmarks)
-      .map(([id, done]) => `<span class="tag">${done ? '✅' : '⬜'} ${state.landmarks[id].name}</span>`).join('');
+      .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id].text)}">${done ? '✅' : '⬜'} ${state.landmarks[id].name}</span>`).join('');
     return `<div class="player ${idx === state.currentPlayerIndex ? 'current' : ''}">
       <h3><span>${escapeHtml(p.name)} ${p.connected ? '' : '（切断）'}</span><span class="coins">${p.coins}🪙</span></h3>
       <div class="small">${idx + 1}番手</div>
       <div class="tags">${landmarks}</div>
-      <div class="tags">${cards}</div>
+      <div class="owned-cards">${builtCards}</div>
     </div>`;
   }).join('');
 }
@@ -135,6 +187,7 @@ function renderActions() {
   if (state.phase === 'roll') {
     const canTwo = m.landmarks.station;
     el.innerHTML = `
+      <div class="dice-stage ready"><div class="dice-label">ダイス準備</div><div class="dice-row">${diceFace(1, 'ready')} ${diceFace(2, 'ready')}</div><div class="dice-total">勢いよく振ろう</div></div>
       <p>ダイスを選んで振ってください。</p>
       <div class="actions">
         <button onclick="emitWithMessage('rollDice', { diceCount: 1 })">1個振る</button>
@@ -143,9 +196,9 @@ function renderActions() {
     return;
   }
   if (state.phase === 'reroll') {
-    const dice = state.pendingRoll ? state.pendingRoll.dice.map(d => `<span class="dice">${d}</span>`).join('') : '';
+    const dice = diceTray(state.pendingRoll, '電波塔の出目');
     el.innerHTML = `
-      <div>${dice}</div>
+      ${dice}
       <p>電波塔効果で、この出目を採用するか1回だけ振り直せます。</p>
       <div class="actions">
         <button onclick="emitWithMessage('acceptRoll')">この出目で進める</button>
@@ -153,9 +206,9 @@ function renderActions() {
       </div>`;
     return;
   }
-  const dice = state.lastRoll ? state.lastRoll.dice.map(d => `<span class="dice">${d}</span>`).join('') : '';
+  const dice = diceTray(state.lastRoll, '今回の出目');
   el.innerHTML = `
-    <div>${dice}</div>
+    ${dice}
     <p>1件だけ建設するか、建設せずに終了できます。</p>
     <div class="actions">
       <button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>
@@ -168,7 +221,7 @@ function renderBuilds() {
   $('landmarks').innerHTML = Object.entries(state.landmarks).map(([id, lm]) => {
     const done = m?.landmarks[id];
     const affordable = (m?.coins || 0) >= lm.cost;
-    return `<article class="card">
+    return `<article class="card landmark-card ${done ? 'complete' : 'incomplete'}">
       <h4>${lm.name}<span>${lm.cost}🪙</span></h4>
       <p>${lm.text}</p>
       <button ${canBuild && !done && affordable ? '' : 'disabled'} onclick="emitWithMessage('buildLandmark', { landmarkId: '${id}' })">${done ? '完成済み' : '完成させる'}</button>

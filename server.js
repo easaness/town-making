@@ -273,7 +273,7 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
     if (socket.id !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
-    if (room.players.length < 2) return cb?.({ ok: false, message: '2人以上で開始してください。' });
+    if (room.players.length < 1) return cb?.({ ok: false, message: '1人以上で開始してください。' });
     room.status = 'playing';
     room.phase = 'roll';
     room.currentPlayerIndex = 0;

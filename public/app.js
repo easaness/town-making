@@ -15,9 +15,12 @@ function emitWithMessage(event, payload = {}) {
 }
 
 function showMessage(text) {
-  const el = $('lobbyMsg');
-  el.textContent = text;
-  setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+  const lobbyEl = $('lobbyMsg');
+  const gameEl = $('gameMsg');
+  [lobbyEl, gameEl].filter(Boolean).forEach((el) => {
+    el.textContent = text;
+    setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
+  });
 }
 
 $('createBtn').onclick = () => {
@@ -83,7 +86,7 @@ function renderStatus() {
   $('startBtn').classList.toggle('hidden', !(state.status === 'waiting' && state.hostId === myId));
   if (state.status === 'waiting') {
     $('statusTitle').textContent = '待機中';
-    $('statusText').textContent = `2〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。`;
+    $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。`;
     return;
   }
   if (state.status === 'finished') {

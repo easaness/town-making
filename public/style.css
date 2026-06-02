@@ -4839,3 +4839,82 @@ body {
     grid-template-areas: "total dice" "label dice" !important;
   }
 }
+
+
+/* Orange-unified polish: remove mixed blue accents while preserving facility color cards. */
+:root {
+  --ui-blue: #e8782e !important;
+  --ui-blue-dark: #9a4317 !important;
+  --accent: #e8782e !important;
+  --accent-dark: #9a4317 !important;
+}
+#statusTitle,
+.turn-summary-head strong,
+.money-summary-title,
+.deck-select-head strong,
+.panel h2,
+.hero h1,
+.roll-notice span,
+.recent-notice.market span {
+  color: #6f3519 !important;
+}
+button:not(.secondary):not(.danger):not(.outline-danger),
+.copy-code-btn.accent,
+.deck-choice-card input:checked + .deck-choice-top .deck-choice-badge,
+.turn-chip.mine {
+  background: #e8782e !important;
+  border-color: #d46625 !important;
+  color: #fffaf4 !important;
+  box-shadow: none !important;
+}
+button.secondary,
+#turnActions button.secondary,
+.hud-actions button.secondary {
+  background: #fff7ed !important;
+  border-color: #f4b183 !important;
+  color: #7c2d12 !important;
+  box-shadow: none !important;
+}
+.player.current,
+.me-player.current,
+.deck-choice-card:has(input:checked),
+.turn-action-card {
+  border-color: #f3a15f !important;
+  outline-color: rgba(232,120,46,.18) !important;
+}
+.panel h2::before,
+.dice-label::before {
+  background: #e8782e !important;
+}
+/* Do not show secondary calculated port result inside dice/result components. The explanatory text below is enough. */
+.deck-mode-chip,
+.roll-adjusted,
+.hud-roll em {
+  display: none !important;
+}
+/* Keep dice totals consistent and non-blue/non-orange-glob. */
+.dice-stage.playable-roll .dice-total,
+#turnActions .dice-stage.playable-roll .dice-total,
+.roll-notice-total,
+.hud-roll {
+  background: #fff7ed !important;
+  border: 1px solid #f0d0b5 !important;
+  color: #5f351f !important;
+}
+.dice-stage.playable-roll .dice-total span,
+#turnActions .dice-stage.playable-roll .dice-total span,
+.roll-notice-total span,
+.hud-roll span {
+  color: #8a4b24 !important;
+}
+.dice-stage.playable-roll .dice-total strong,
+#turnActions .dice-stage.playable-roll .dice-total strong,
+.roll-notice-total b,
+.roll-notice-total strong,
+.hud-roll-value {
+  color: #432411 !important;
+  -webkit-text-fill-color: #432411 !important;
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}

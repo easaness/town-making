@@ -598,7 +598,7 @@ function diceFace(value, extraClass = '', attrs = '') {
 function diceTray(roll, label = '出目') {
   if (!roll) return '<div class="dice-stage idle"><span>ダイス待ち</span></div>';
   const fresh = diceJustChanged ? ' result-roll' : '';
-  const adjusted = roll.adjustedTotal ? ` <span class="deck-mode-chip">港なら ${roll.adjustedTotal}</span>` : '';
+  const adjusted = '';
   const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
   return `<div class="dice-stage playable-roll${fresh}">
     <div class="dice-label">${label}</div>
@@ -783,7 +783,7 @@ function renderRollNotice() {
   const name = rollOwnerName(roll);
   const label = '今回の出目';
   const fresh = diceJustChanged ? ' fresh' : '';
-  const adjusted = roll.adjustedTotal ? `<span class="roll-adjusted">港なら ${roll.adjustedTotal}</span>` : '';
+  const adjusted = '';
   el.className = `roll-notice clean-roll ${mine ? 'mine' : 'opponent'}${fresh}`;
   const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
   el.innerHTML = `
@@ -1005,7 +1005,7 @@ function stickyHudRollHtml() {
   if (!roll?.dice?.length) {
     return '';
   }
-  const adjusted = roll.adjustedTotal ? `<em>港なら ${roll.adjustedTotal}</em>` : '';
+  const adjusted = '';
   const who = escapeHtml(rollOwnerName(roll));
   return `<div class="hud-roll"><span>今回の出目</span><strong class="hud-roll-value">${escapeHtml(rollExpression(roll))}</strong><small>${who}さん</small>${adjusted}</div>`;
 }
@@ -1189,7 +1189,7 @@ function renderActions() {
   }
   if (state.phase === 'portChoice') {
     const roll = state.pendingRoll;
-    const dice = diceTray(roll, '港効果の出目');
+    const dice = diceTray(roll, '今回の出目');
     if (!me()) {
       const cp = currentPlayer();
       el.innerHTML = `<p>観戦中です。${escapeHtml(cp?.name || 'プレイヤー')} が港効果を使うか選んでいます。</p>`;

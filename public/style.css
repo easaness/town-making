@@ -1337,3 +1337,97 @@ button:disabled {
     border-radius: 18px;
   }
 }
+
+
+/* Compact player area: avoid endless vertical growth as cards increase. */
+.owned-card-details {
+  margin-top: 12px;
+  border: 1px solid rgba(80, 54, 26, .10);
+  border-radius: 16px;
+  background: rgba(255,255,255,.48);
+  overflow: hidden;
+}
+
+.owned-card-details summary {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 12px;
+  font-weight: 1000;
+  color: #5c4330;
+  list-style: none;
+}
+
+.owned-card-details summary::-webkit-details-marker {
+  display: none;
+}
+
+.owned-card-details summary::before {
+  content: '▶';
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.2em;
+  color: #aa5420;
+  transition: transform .16s ease;
+}
+
+.owned-card-details[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.owned-card-details summary span {
+  margin-left: auto;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fff3d8;
+  border: 1px solid #efd3a1;
+  color: #9a5a09;
+  font-size: .8rem;
+}
+
+.owned-card-details .owned-cards {
+  max-height: 230px;
+  overflow: auto;
+  padding: 0 10px 10px;
+  overscroll-behavior: contain;
+}
+
+.player:not(.current):not(.me-player) .owned-card-details:not([open]) {
+  margin-top: 10px;
+}
+
+.player:not(.current):not(.me-player) .owned-card-details:not([open]) + * {
+  display: none;
+}
+
+@media (min-width: 801px) {
+  #players {
+    max-height: 72vh;
+    overflow: auto;
+    padding-right: 4px;
+    overscroll-behavior: contain;
+  }
+
+  .grid.two > .panel:first-child {
+    position: sticky;
+    top: 14px;
+    align-self: start;
+    max-height: calc(100vh - 28px);
+    overflow: hidden;
+  }
+}
+
+@media (max-width: 800px) {
+  .owned-card-details .owned-cards {
+    max-height: 180px;
+  }
+
+  #players {
+    display: grid;
+    gap: 10px;
+  }
+}

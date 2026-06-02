@@ -6,6 +6,7 @@ let diceJustChanged = false;
 let localRollingCount = 0;
 let rollingTimer = null;
 let hostSkipArmed = false;
+let roomOpsArmed = false;
 let rollingPreviewValues = [];
 let rollingNonce = 0;
 let lastCoinEventId = null;
@@ -428,6 +429,7 @@ $('startBtn').onclick = () => emitWithMessage('startGame');
 $('copyRoomCodeBtn').onclick = copyRoomCode;
 $('copyInviteBtn').onclick = copyInviteLink;
 $('soundToggleBtn').onclick = toggleSound;
+if ($('openRoomOpsBtn')) $('openRoomOpsBtn').onclick = openRoomOps;
 if ($('volumeSlider')) {
   $('volumeSlider').value = Math.round(masterVolume * 100);
   $('volumeSlider').oninput = (e) => {
@@ -617,6 +619,7 @@ function render() {
   renderBuilds();
   renderLogs();
   renderHostAdmin();
+  renderRoomOps();
   renderStickyHud();
 }
 
@@ -740,6 +743,65 @@ function renderRecentNotice() {
 
 function hostControlHtml() {
   return '';
+}
+
+function renderRoomOps() {
+  const panel = $('roomOpsPanel');
+  const body = $('roomOpsBody');
+  if (!panel || !body) return;
+  const visible = Boolean(state?.code);
+  panel.classList.toggle('hidden', !visible);
+  if (!visible) {
+    roomOpsArmed = false;
+    body.innerHTML = '';
+    return;
+  }
+  const statusLabel = state.status === 'waiting' ? '待機中' : state.status === 'finished' ? 'ゲーム終了' : 'プレイ中';
+  body.innerHTML = `
+    <p class="small">ルームを抜ける操作は、手番アクションとは分けてここに置いています。</p>
+    <div class="admin-status">現在の部屋: <strong>${escapeHtml(state.code)}</strong> / 状態: <strong>${escapeHtml(statusLabel)}</strong></div>
+    ${roomOpsArmed ? `
+      <div class="room-confirm admin-confirm">
+        <p>この部屋から抜けて、新しい部屋を作りますか？</p>
+        <div class="actions">
+          <button class="accent" onclick="confirmCreateNewRoomFromRoom()">新しい部屋を作る</button>
+          <button class="secondary" onclick="cancelCreateNewRoomFromRoom()">キャンセル</button>
+        </div>
+      </div>` : `
+      <div class="actions wrap">
+        <button onclick="armCreateNewRoomFromRoom()">この部屋を抜けて新しい部屋を作る</button>
+        <button class="secondary" onclick="leaveRoomAndBackToLobby()">ロビーに戻る</button>
+      </div>`}
+  `;
+}
+
+function openRoomOps() {
+  const panel = $('roomOpsPanel');
+  if (!panel) return;
+  panel.classList.remove('hidden');
+  const details = panel.querySelector('details');
+  if (details) details.open = true;
+  panel.scrollIntoView({ behavior: 'smooth', block: 'center' });
+}
+
+function armCreateNewRoomFromRoom() {
+  roomOpsArmed = true;
+  renderRoomOps();
+}
+
+function cancelCreateNewRoomFromRoom() {
+  roomOpsArmed = false;
+  renderRoomOps();
+}
+
+function confirmCreateNewRoomFromRoom() {
+  roomOpsArmed = false;
+  socket.emit('leaveRoom', {}, () => createFreshRoom());
+}
+
+function leaveRoomAndBackToLobby() {
+  roomOpsArmed = false;
+  socket.emit('leaveRoom', {}, () => backToLobbyForNewRoom());
 }
 
 function renderHostAdmin() {
@@ -871,7 +933,10 @@ function renderPlayers() {
       <h3><span>${escapeHtml(p.name)} ${p.connected ? '' : '（切断）'}</span><span class="coins">${p.coins}🪙</span></h3>
       <div class="small">${idx + 1}番手</div>
       <div class="tags">${landmarks}</div>
-      <div class="owned-cards">${builtCards}</div>
+      <details class="owned-card-details">
+        <summary>建築済み施設 <span>${Object.values(p.cards || {}).reduce((a, b) => a + b, 0)}枚</span></summary>
+        <div class="owned-cards">${builtCards}</div>
+      </details>
     </div>`;
   }).join('');
 }

@@ -43,7 +43,7 @@
 
     <main id="game" class="hidden">
       <section class="panel topbar">
-        <div>
+        <div class="status-area">
           <h2 id="statusTitle">待機中</h2>
           <p id="statusText"></p>
           <div id="turnBanner" class="turn-banner hidden"></div>
@@ -52,18 +52,18 @@
           <div id="rollNotice" class="roll-notice hidden"></div>
           <div id="recentNotice" class="recent-notice hidden"></div>
         </div>
-        <button id="startBtn" class="accent hidden">ゲーム開始</button>
-      </section>
-
-      <section class="grid two">
-        <div class="panel">
-          <h2>プレイヤー</h2>
-          <div id="players"></div>
-        </div>
-        <div class="panel">
-          <h2>手番アクション</h2>
+        <div class="turn-action-card">
+          <div class="turn-action-head">
+            <h2>手番アクション</h2>
+            <button id="startBtn" class="accent hidden">ゲーム開始</button>
+          </div>
           <div id="turnActions"></div>
         </div>
+      </section>
+
+      <section class="panel players-panel">
+        <h2>プレイヤー</h2>
+        <div id="players"></div>
       </section>
 
       <section class="panel">

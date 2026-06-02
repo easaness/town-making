@@ -798,20 +798,57 @@ function latestNoticeEvent() {
   return null;
 }
 
+function summarizeTurnEvents(events) {
+  const items = [];
+  for (const ev of events || []) {
+    const type = String(ev.type || '');
+    const label = String(ev.label || '').trim();
+    if (!label) continue;
+    let icon = '•';
+    let kind = 'other';
+    if (type.includes('income')) { icon = '🪙'; kind = 'income'; }
+    else if (type.includes('steal')) { icon = '💸'; kind = 'steal'; }
+    else if (type.includes('amusement')) { icon = '🎢'; kind = 'amusement'; }
+    items.push({ icon, kind, label });
+  }
+  return items;
+}
+
 function renderRecentNotice() {
   const el = $('recentNotice');
   if (!el || !state || state.status === 'waiting') return;
-  const ev = latestNoticeEvent();
-  if (!ev?.label || state.status === 'finished') {
+  const events = state.turnSummary || [];
+  const items = summarizeTurnEvents(events);
+  const hasRoll = Boolean(state.lastRoll || state.pendingRoll);
+  if (state.status === 'finished') {
     el.classList.add('hidden');
     return;
   }
-  const type = String(ev.type || '');
-  const icon = type.includes('market') ? '🃏' : type.includes('steal') ? '💸' : type.includes('income') ? '🪙' : type.includes('host') ? '⏭️' : type.includes('amusement') ? '🎢' : '✨';
-  const title = type.includes('market') ? '市場補充' : type.includes('host') ? 'ホスト操作' : type.includes('amusement') ? '遊園地' : '直近の効果';
-  el.className = `recent-notice ${type.includes('market') ? 'market' : type.includes('host') ? 'host' : ''}`;
-  el.innerHTML = `<strong>${icon} ${title}</strong><span>${escapeHtml(ev.label)}</span>`;
+
+  const roll = state.lastRoll || state.pendingRoll;
+  const rollLine = roll?.dice?.length
+    ? `<div class="turn-summary-roll"><span>出目</span><strong>${escapeHtml(rollExpression(roll))}</strong></div>`
+    : '';
+
+  if (!items.length && !hasRoll) {
+    el.classList.add('hidden');
+    return;
+  }
+
+  const body = items.length
+    ? `<ul class="turn-summary-list">${items.map(item => `<li class="${item.kind}"><span class="turn-summary-icon">${item.icon}</span><span>${escapeHtml(item.label)}</span></li>`).join('')}</ul>`
+    : `<p class="turn-summary-empty">このターンの施設効果はまだ発生していません。</p>`;
+
+  el.className = 'recent-notice turn-summary-panel';
+  el.innerHTML = `
+    <div class="turn-summary-head">
+      <strong>このターンの処理</strong>
+      <span>${escapeHtml(state.currentPlayer?.name || '')}</span>
+    </div>
+    ${rollLine}
+    ${body}`;
 }
+
 
 function hostControlHtml() {
   return '';
@@ -1000,6 +1037,7 @@ function renderStickyHud() {
       <strong>あなた ${mine.coins}🪙</strong>
       <span>${myTurnNow ? 'あなたの番' : `${escapeHtml(cp?.name || '相手')} の番`} / ${phaseLabel}</span>
     </div>
+    ${stickyHudRollHtml()}
     <div class="hud-actions">${stickyHudActionHtml()}</div>
   `;
 }

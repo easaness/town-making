@@ -2312,3 +2312,231 @@ button:disabled {
     justify-content: center !important;
   }
 }
+
+
+/* Final dice UX fix: restore result dice and bottom current roll, keep dice horizontal, make totals readable. */
+#rollNotice,
+.roll-notice.clean-roll {
+  display: grid !important;
+}
+.roll-notice.clean-roll {
+  grid-template-columns: minmax(0, 1fr) auto !important;
+  align-items: center !important;
+  gap: 12px !important;
+  background: linear-gradient(135deg, rgba(255,247,230,.96), rgba(255,255,255,.92)) !important;
+  border: 1px solid rgba(180,116,47,.24) !important;
+  box-shadow: 0 10px 26px rgba(87,60,28,.10) !important;
+}
+.roll-notice.clean-roll .roll-notice-result,
+.roll-notice.clean-roll .roll-notice-dice,
+.dice-stage.playable-roll .dice-row,
+.dice-stage.playable-roll .result-dice-row,
+#turnActions .dice-stage.playable-roll .dice-row,
+#turnActions .dice-stage.playable-roll .result-dice-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;
+}
+.dice-stage.playable-roll .result-dice-row,
+#turnActions .dice-stage.playable-roll .result-dice-row {
+  min-height: 72px !important;
+}
+.dice-stage.playable-roll .dice-face,
+#turnActions .dice-stage.playable-roll .dice-face,
+.roll-notice.clean-roll .dice-face {
+  display: grid !important;
+  flex: 0 0 auto !important;
+}
+.dice-stage.playable-roll .dice-total,
+#turnActions .dice-stage.playable-roll .dice-total,
+.roll-notice-total {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 9px !important;
+  padding: 8px 13px !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.88) !important;
+  border: 1px solid rgba(180,116,47,.28) !important;
+  box-shadow: 0 8px 20px rgba(87,60,28,.10) !important;
+  color: #7c2d12 !important;
+  white-space: nowrap !important;
+}
+.dice-stage.playable-roll .dice-total span,
+#turnActions .dice-stage.playable-roll .dice-total span,
+.roll-notice-total span {
+  font-size: .78rem !important;
+  font-weight: 1000 !important;
+  letter-spacing: .04em !important;
+  color: #9a3412 !important;
+}
+.dice-stage.playable-roll .dice-total strong,
+#turnActions .dice-stage.playable-roll .dice-total strong,
+.roll-notice-total b,
+.roll-notice-total strong {
+  display: inline !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.35rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+}
+.hud-roll {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  min-width: 190px !important;
+  padding: 8px 12px !important;
+  border-radius: 999px !important;
+  background: rgba(255,255,255,.90) !important;
+  border: 1px solid rgba(180,116,47,.22) !important;
+  box-shadow: 0 6px 16px rgba(87,60,28,.08) !important;
+  color: #7c2d12 !important;
+  white-space: nowrap !important;
+}
+.hud-roll span {
+  font-size: .76rem !important;
+  font-weight: 1000 !important;
+  color: #9a3412 !important;
+}
+.hud-roll strong {
+  display: inline !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.02rem !important;
+  font-weight: 1000 !important;
+}
+.hud-roll small {
+  color: #7c2d12 !important;
+  font-weight: 800 !important;
+}
+.hud-roll em {
+  font-style: normal !important;
+  color: #0f766e !important;
+  font-weight: 900 !important;
+}
+.sticky-hud {
+  grid-template-columns: minmax(120px, auto) minmax(180px, auto) auto !important;
+}
+@media (max-width: 780px) {
+  .sticky-hud {
+    grid-template-columns: 1fr !important;
+  }
+  .hud-roll {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .roll-notice.clean-roll {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+
+/* Turn summary panel: replaces the old "recent effect" notice. */
+.turn-summary-panel {
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 14px 16px;
+  border-radius: 18px;
+  background: linear-gradient(180deg, #fffdf7 0%, #fff7e6 100%);
+  border: 1px solid rgba(217, 119, 6, .28);
+  color: #3f2b12;
+  box-shadow: 0 12px 26px rgba(120, 53, 15, .10);
+  animation: recent-pop .22s ease-out both;
+}
+.turn-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.turn-summary-head strong {
+  font-size: .98rem;
+  font-weight: 1000;
+  letter-spacing: .02em;
+}
+.turn-summary-head span {
+  color: #8a5a16;
+  font-weight: 900;
+  font-size: .82rem;
+}
+.turn-summary-roll {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: #ffffff;
+  border: 1px solid rgba(217, 119, 6, .22);
+  color: #5f3b0a;
+}
+.turn-summary-roll span {
+  color: #9a6a1d;
+  font-size: .78rem;
+  font-weight: 900;
+}
+.turn-summary-roll strong {
+  font-weight: 1000;
+}
+.turn-summary-list {
+  list-style: none;
+  display: grid;
+  gap: 7px;
+  margin: 0;
+  padding: 0;
+}
+.turn-summary-list li {
+  display: grid;
+  grid-template-columns: 26px 1fr;
+  gap: 8px;
+  align-items: start;
+  padding: 8px 10px;
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .72);
+  border: 1px solid rgba(146, 64, 14, .10);
+  font-weight: 800;
+  line-height: 1.45;
+}
+.turn-summary-list li.income { border-left: 4px solid #22c55e; }
+.turn-summary-list li.steal { border-left: 4px solid #ef4444; }
+.turn-summary-list li.amusement { border-left: 4px solid #8b5cf6; }
+.turn-summary-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  background: #fff7ed;
+}
+.turn-summary-empty {
+  margin: 0;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, .7);
+  color: #8a5a16;
+  font-weight: 800;
+}
+@media (max-width: 720px) {
+  .turn-summary-head { align-items: flex-start; flex-direction: column; }
+  .turn-summary-list li { grid-template-columns: 24px 1fr; }
+}

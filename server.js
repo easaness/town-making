@@ -102,6 +102,7 @@ function normalizeLoadedRoom(room) {
   });
   room.coinEvents = Array.isArray(room.coinEvents) ? room.coinEvents : [];
   room.specialEvents = Array.isArray(room.specialEvents) ? room.specialEvents : [];
+  room.turnSummary = Array.isArray(room.turnSummary) ? room.turnSummary : [];
   room.deck = Array.isArray(room.deck) ? room.deck : [];
   room.market = room.market || {};
   room.eventSeq = Number(room.eventSeq || 0);
@@ -228,6 +229,7 @@ function resetRoomToWaiting(room) {
   room.winnerId = null;
   room.coinEvents = [];
   room.specialEvents = [];
+  room.turnSummary = [];
 }
 
 function publicRoom(room) {
@@ -254,6 +256,7 @@ function publicRoom(room) {
     logs: room.logs.slice(-60),
     coinEvents: (room.coinEvents || []).slice(-30),
     specialEvents: (room.specialEvents || []).slice(-20),
+    turnSummary: (room.turnSummary || []).slice(-30),
     cards: getCardDefs(room),
     landmarks: getLandmarkDefs(room, true),
     lastUpdatedAt: room.lastUpdatedAt || Date.now()
@@ -274,8 +277,9 @@ function log(room, text) {
 
 function specialEvent(room, type, player, label, extra = {}) {
   if (!room.specialEvents) room.specialEvents = [];
+  if (!room.turnSummary) room.turnSummary = [];
   room.eventSeq = (room.eventSeq || 0) + 1;
-  room.specialEvents.push({
+  const ev = {
     id: room.eventSeq,
     ts: Date.now(),
     type,
@@ -283,8 +287,17 @@ function specialEvent(room, type, player, label, extra = {}) {
     playerName: player?.name || '',
     label,
     ...extra
-  });
+  };
+  room.specialEvents.push(ev);
   room.specialEvents = room.specialEvents.slice(-40);
+
+  // 「このターンに起こった処理」用。市場補充・ホスト操作などの周辺通知は除外し、
+  // 収入・支払い・奪取・遊園地・補助金など、ターン結果として見たいものだけ残す。
+  const summaryTypes = ['effect-income', 'effect-steal', 'amusement-earned', 'amusement-start'];
+  if (summaryTypes.includes(type)) {
+    room.turnSummary.push(ev);
+    room.turnSummary = room.turnSummary.slice(-30);
+  }
 }
 
 function coinEvent(room, player, amount, type, label) {
@@ -372,6 +385,7 @@ function reverseOrderFrom(room, rollerIndex) {
 function resolveRoll(room, diceValues, overrideTotal = null) {
   const rawTotal = diceValues.reduce((a, b) => a + b, 0);
   const total = overrideTotal || rawTotal;
+  room.turnSummary = [];
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
   room.lastRoll = { dice: diceValues, total, rawTotal, playerId: roller.id, playerName: roller.name };
@@ -809,6 +823,7 @@ io.on('connection', (socket) => {
     room.winnerId = null;
     room.coinEvents = [];
     room.specialEvents = [];
+    room.turnSummary = [];
     log(room, `ゲームを開始しました。山札から場を ${marketSize(room)} 種類まで作りました。山札残り ${room.deck.length} 枚。`);
     cb?.({ ok: true });
     emitRoom(room);

@@ -964,7 +964,7 @@ function stickyHudRollHtml() {
     return `<div class="hud-roll rolling"><span>現在の出目</span><strong>${who}が振っています...</strong></div>`;
   }
   if (!roll?.dice?.length) {
-    return `<div class="hud-roll empty"><span>現在の出目</span><strong>まだありません</strong></div>`;
+    return '';
   }
   const adjusted = roll.adjustedTotal ? `<em>港なら ${roll.adjustedTotal}</em>` : '';
   const who = escapeHtml(rollOwnerName(roll));

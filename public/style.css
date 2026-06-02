@@ -2540,3 +2540,126 @@ button:disabled {
   .turn-summary-head { align-items: flex-start; flex-direction: column; }
   .turn-summary-list li { grid-template-columns: 24px 1fr; }
 }
+
+
+/* Final cleanup requested: no "現在の出目: まだありません", no blue divider lines, cleaner dice totals. */
+.hud-roll.empty {
+  display: none !important;
+}
+
+.turn-summary-panel {
+  background: linear-gradient(180deg, #fffdf7 0%, #fff3dc 100%) !important;
+  border: 1px solid rgba(180, 116, 47, .24) !important;
+  box-shadow: 0 12px 28px rgba(87, 60, 28, .10) !important;
+}
+.turn-summary-panel::before,
+.turn-summary-panel::after,
+.turn-summary-head::before,
+.turn-summary-head::after,
+.turn-summary-roll::before,
+.turn-summary-roll::after {
+  content: none !important;
+  display: none !important;
+}
+.turn-summary-roll {
+  display: inline-flex !important;
+  align-items: center !important;
+  gap: 9px !important;
+  width: fit-content !important;
+  padding: 7px 12px !important;
+  border-radius: 14px !important;
+  background: rgba(255, 255, 255, .82) !important;
+  border: 1px solid rgba(180, 116, 47, .22) !important;
+  box-shadow: 0 6px 16px rgba(87, 60, 28, .08) !important;
+  color: #4a2b12 !important;
+}
+.turn-summary-roll span {
+  color: #9a3412 !important;
+  font-size: .78rem !important;
+  font-weight: 1000 !important;
+  letter-spacing: .04em !important;
+}
+.turn-summary-roll strong {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.15rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+}
+.turn-summary-list li,
+.turn-summary-list li.income,
+.turn-summary-list li.steal,
+.turn-summary-list li.amusement {
+  border-left: 0 !important;
+  border-top: 0 !important;
+  border-right: 0 !important;
+  border-bottom: 1px solid rgba(146, 64, 14, .10) !important;
+  background: rgba(255, 255, 255, .70) !important;
+}
+.turn-summary-list li:last-child {
+  border-bottom: 0 !important;
+}
+
+.roll-notice.clean-roll .roll-notice-result,
+.roll-notice.clean-roll .roll-notice-dice,
+.dice-stage.playable-roll .dice-row,
+.dice-stage.playable-roll .result-dice-row,
+#turnActions .dice-stage.playable-roll .dice-row,
+#turnActions .dice-stage.playable-roll .result-dice-row {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;
+}
+.roll-notice-total,
+.dice-stage.playable-roll .dice-total,
+#turnActions .dice-stage.playable-roll .dice-total {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 7px 12px !important;
+  border-radius: 14px !important;
+  background: linear-gradient(180deg, rgba(255,255,255,.95), rgba(255,248,235,.95)) !important;
+  border: 1px solid rgba(180,116,47,.24) !important;
+  box-shadow: 0 7px 16px rgba(87,60,28,.08) !important;
+  color: #7c2d12 !important;
+  white-space: nowrap !important;
+}
+.roll-notice-total b,
+.roll-notice-total strong,
+.dice-stage.playable-roll .dice-total strong,
+#turnActions .dice-stage.playable-roll .dice-total strong {
+  display: inline !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.22rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+}
+.roll-notice-total span,
+.dice-stage.playable-roll .dice-total span,
+#turnActions .dice-stage.playable-roll .dice-total span {
+  color: #9a3412 !important;
+  font-size: .78rem !important;
+  font-weight: 1000 !important;
+  letter-spacing: .04em !important;
+}
+@media (max-width: 720px) {
+  .roll-notice.clean-roll .roll-notice-result {
+    justify-content: center !important;
+  }
+  .turn-summary-roll {
+    width: 100% !important;
+    justify-content: center !important;
+  }
+}

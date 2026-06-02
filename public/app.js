@@ -989,7 +989,7 @@ function submitBusiness() {
 function renderActions() {
   const el = $('turnActions');
   if (state.status === 'waiting') {
-    el.innerHTML = `<p>${escapeHtml(phaseGuideText())}</p><div class="actions"><button class="secondary" onclick="copyInviteLink()">招待リンクをコピー</button>${state.hostId === myId ? '<button onclick="emitWithMessage(\'startGame\')">ゲーム開始</button>' : ''}</div>`;
+    el.innerHTML = `<p>${escapeHtml(phaseGuideText())}</p><div class="actions"><button class="secondary" onclick="copyInviteLink()">招待リンクをコピー</button></div>`;
     return;
   }
   if (state.status === 'finished') {

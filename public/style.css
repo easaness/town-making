@@ -1652,3 +1652,9 @@ button:disabled {
 .owned-card-details {
   margin-top: 12px;
 }
+
+
+/* Safety: standalone startBtn was removed. If an old cached DOM has it, keep it hidden. */
+#startBtn.hidden {
+  display: none !important;
+}

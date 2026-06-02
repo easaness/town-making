@@ -425,7 +425,7 @@ $('joinBtn').onclick = () => {
     }
   });
 };
-$('startBtn').onclick = () => emitWithMessage('startGame');
+if ($('startBtn')) $('startBtn').onclick = () => emitWithMessage('startGame');
 $('copyRoomCodeBtn').onclick = copyRoomCode;
 $('copyInviteBtn').onclick = copyInviteLink;
 $('soundToggleBtn').onclick = toggleSound;
@@ -633,7 +633,6 @@ function renderStatus() {
     turnBanner.classList.remove('amusement');
   }
   if (victoryBanner) victoryBanner.classList.add('hidden');
-  $('startBtn').classList.toggle('hidden', !(state.status === 'waiting' && state.hostId === myId));
   if (state.status === 'waiting') {
     $('statusTitle').textContent = '待機中';
     $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。`;

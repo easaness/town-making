@@ -2007,3 +2007,92 @@ button:disabled {
     grid-column: 1 / -1;
   }
 }
+
+/* Final dice display polish: action panel uses readable text instead of dice pip boxes. */
+.dice-stage.text-roll {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  background: linear-gradient(135deg, #fffaf0, #ffffff);
+  border: 2px solid rgba(146, 100, 47, .18);
+}
+.dice-stage.text-roll .dice-label {
+  color: #8a5a22;
+}
+.dice-stage.text-roll .readable-roll {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 0;
+}
+.dice-stage.text-roll .readable-roll strong {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 2px solid rgba(67, 50, 35, .14);
+  color: #1f2937 !important;
+  font-size: 1.35rem;
+  line-height: 1;
+  font-weight: 1000;
+  box-shadow: 0 8px 18px rgba(67, 50, 35, .08);
+}
+#turnActions .dice-stage.text-roll .dice-row,
+#turnActions .dice-stage.text-roll .dice-face {
+  display: none !important;
+}
+
+/* Final fix: make every total/current-roll number readable. */
+.dice-total,
+.dice-stage.text-roll .dice-total,
+.dice-stage.text-roll .readable-roll,
+.roll-notice-result,
+.hud-roll {
+  color: #1f2937;
+}
+
+.dice-total strong,
+.dice-stage.text-roll .readable-roll strong,
+.roll-notice.clean-roll .roll-notice-values,
+.hud-roll strong,
+#turnActions .dice-total strong,
+#turnActions .readable-roll strong {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-width: 44px !important;
+  min-height: 34px !important;
+  padding: 7px 12px !important;
+  border-radius: 12px !important;
+  background: #ffffff !important;
+  border: 2px solid rgba(120, 82, 44, .22) !important;
+  color: #1f2937 !important;
+  -webkit-text-fill-color: #1f2937 !important;
+  box-shadow: 0 4px 12px rgba(67, 50, 35, .10) !important;
+  text-shadow: none !important;
+  mix-blend-mode: normal !important;
+}
+
+.hud-roll {
+  background: rgba(255, 255, 255, .18) !important;
+}
+
+.hud-roll strong {
+  background: #ffffff !important;
+  color: #1f2937 !important;
+}
+
+.dice-total::before,
+.dice-total::after,
+.readable-roll::before,
+.readable-roll::after,
+.hud-roll strong::before,
+.hud-roll strong::after,
+.roll-notice-values::before,
+.roll-notice-values::after {
+  content: none !important;
+  display: none !important;
+}

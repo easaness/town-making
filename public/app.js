@@ -597,12 +597,11 @@ function diceFace(value, extraClass = '', attrs = '') {
 
 function diceTray(roll, label = '出目') {
   if (!roll) return '<div class="dice-stage idle"><span>ダイス待ち</span></div>';
-  const rolling = diceJustChanged ? 'result-roll' : 'settled';
-  const dice = roll.dice.map((d, i) => diceFace(d, `${rolling} d${i + 1}`)).join('');
-  return `<div class="dice-stage ${rolling}">
+  const fresh = diceJustChanged ? ' result-roll' : '';
+  const adjusted = roll.adjustedTotal ? ` <span class="deck-mode-chip">港なら ${roll.adjustedTotal}</span>` : '';
+  return `<div class="dice-stage text-roll${fresh}">
     <div class="dice-label">${label}</div>
-    <div class="dice-row">${dice}</div>
-    <div class="dice-total">合計 <strong>${roll.total}</strong>${roll.adjustedTotal ? ` <span class="deck-mode-chip">港なら ${roll.adjustedTotal}</span>` : ''}</div>
+    <div class="dice-total readable-roll"><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
   </div>`;
 }
 

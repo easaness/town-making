@@ -847,7 +847,7 @@ function renderRecentNotice() {
 
   const roll = state.lastRoll || state.pendingRoll;
   const rollLine = roll?.dice?.length
-    ? `<div class="turn-summary-roll"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong></div>`
+    ? `<div class="turn-summary-roll"><span>今回の出目</span><strong>${escapeHtml(rollExpression(roll))}</strong></div>`
     : '';
 
   if (!items.length && !hasRoll) {

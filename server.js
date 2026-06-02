@@ -428,13 +428,15 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
     room.pendingTuna = {
       queue: tunaQueue,
       currentIndex: 0,
+      rollerId: roller.id,
+      rollerName: roller.name,
       diceValues: [...diceValues],
       total,
       rawTotal
     };
     room.phase = 'tunaRoll';
     const current = tunaQueue[0];
-    log(room, `${current.playerName} のマグロ漁船：追加ダイスを振ってください。`);
+    log(room, `${current.playerName} のマグロ漁船：${roller.name} が追加ダイスを振ってください。`);
     return;
   }
 
@@ -452,7 +454,7 @@ function continueRollAfterTuna(room, diceValues, total) {
     let amount = 0;
     if (cardId === 'bakery') amount = applyMallBonus(roller, cardId, 1) * c;
     if (cardId === 'convenience') amount = applyMallBonus(roller, cardId, 3) * c;
-    if (cardId === 'flowerShop') amount = count(roller, 'flower') * c;
+    if (cardId === 'flowerShop') amount = (count(roller, 'flower') + (has(roller, 'mall') ? 1 : 0)) * c;
     if (cardId === 'cheese') amount = 3 * count(roller, 'ranch') * c;
     if (cardId === 'furniture') amount = 3 * (count(roller, 'forest') + count(roller, 'mine')) * c;
     if (cardId === 'market') amount = 2 * (count(roller, 'wheat') + count(roller, 'apple')) * c;
@@ -911,11 +913,11 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.phase !== 'tunaRoll' || !room.pendingTuna) return;
     if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
     const current = room.pendingTuna.queue[room.pendingTuna.currentIndex];
-    if (!current || current.playerId !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたのマグロ漁船ではありません。' });
-    const player = room.players.find(p => p.id === current.playerId);
-    if (!player) return cb?.({ ok: false, message: 'プレイヤーが見つかりません。' });
+    if (!current || room.pendingTuna.rollerId !== socket.data.playerId) return cb?.({ ok: false, message: '出目を出したプレイヤーが追加ダイスを振ります。' });
+    const roller = room.players.find(p => p.id === room.pendingTuna.rollerId);
+    if (!roller) return cb?.({ ok: false, message: 'プレイヤーが見つかりません。' });
 
-    room.rolling = { playerId: player.id, playerName: player.name, diceCount: 2, mode: 'tuna', nonce: Date.now() };
+    room.rolling = { playerId: roller.id, playerName: roller.name, diceCount: 2, mode: 'tuna', nonce: Date.now() };
     cb?.({ ok: true });
     emitRoom(room);
 
@@ -931,14 +933,15 @@ io.on('connection', (socket) => {
       currentRoom.rolling = null;
       if (amount > 0) {
         bankIncome(currentRoom, tunaPlayer, amount, CARD_DEFS.tunaBoat.name);
-        const text = `${tunaPlayer.name} のマグロ漁船：追加ダイス ${tunaDice.join(' + ')} = ${diceSum}、${tuna.count}隻で ${amount} コイン。`;
+        const rollerName = currentRoom.pendingTuna.rollerName || '出目を出したプレイヤー';
+        const text = `${tunaPlayer.name} のマグロ漁船：${rollerName} が追加ダイス ${tunaDice.join(' + ')} = ${diceSum}、${tuna.count}隻で ${amount} コイン。（追加ダイスには港+2なし）`;
         log(currentRoom, text);
         specialEvent(currentRoom, 'effect-income', tunaPlayer, text, { cardId: 'tunaBoat', amount, dice: tunaDice, count: tuna.count });
       }
       currentRoom.pendingTuna.currentIndex += 1;
       if (currentRoom.pendingTuna.currentIndex < currentRoom.pendingTuna.queue.length) {
         const next = currentRoom.pendingTuna.queue[currentRoom.pendingTuna.currentIndex];
-        log(currentRoom, `${next.playerName} のマグロ漁船：追加ダイスを振ってください。`);
+        log(currentRoom, `${next.playerName} のマグロ漁船：${currentRoom.pendingTuna.rollerName || '出目を出したプレイヤー'} が追加ダイスを振ってください。`);
       } else {
         const saved = currentRoom.pendingTuna;
         currentRoom.pendingTuna = null;

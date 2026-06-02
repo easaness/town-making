@@ -1834,3 +1834,84 @@ button:disabled {
   color: #1d4ed8;
   font-weight: 900;
 }
+
+/* Fix: show current roll in the bottom sticky bar and remove blank dice squares from roll notice. */
+.roll-notice-dice {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.roll-notice-values {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-width: 52px;
+  min-height: 34px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.78);
+  border: 1px solid rgba(67,50,35,.16);
+  color: #433223 !important;
+  font-size: .95rem !important;
+  font-weight: 1000 !important;
+  margin: 0 !important;
+}
+.roll-adjusted {
+  display: inline-flex !important;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  color: #c2410c !important;
+  font-size: .82rem !important;
+  font-weight: 1000 !important;
+  margin: 0 !important;
+}
+.sticky-hud {
+  grid-template-columns: minmax(120px, auto) minmax(150px, 1fr) auto;
+}
+.hud-roll {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 44px;
+  padding: 7px 12px;
+  border-radius: 14px;
+  background: rgba(255,255,255,.11);
+  border: 1px solid rgba(255,255,255,.14);
+  color: #fff8ef;
+  white-space: nowrap;
+}
+.hud-roll span {
+  color: rgba(255,245,230,.74);
+  font-size: .78rem;
+  font-weight: 900;
+}
+.hud-roll strong {
+  color: #fff8ef;
+  font-size: 1rem;
+  font-weight: 1000;
+}
+.hud-roll em {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(253,186,116,.18);
+  color: #fed7aa;
+  font-size: .75rem;
+  font-style: normal;
+  font-weight: 1000;
+}
+.hud-roll.empty strong,
+.hud-roll.rolling strong {
+  color: rgba(255,245,230,.82);
+}
+@media (max-width: 720px) {
+  .sticky-hud {
+    grid-template-columns: 1fr;
+  }
+  .hud-roll {
+    justify-content: space-between;
+  }
+}

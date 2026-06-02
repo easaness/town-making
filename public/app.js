@@ -415,7 +415,7 @@ function updateDeckModeHelp() {
   const help = $('deckModeHelp');
   if (!help) return;
   if (mode === 'plus') {
-    help.innerHTML = '<strong>街コロ＋：</strong>基本カードに港・空港・漁船・出版社・税務署などを追加します。役所は常時有効ルールの表示だけです。';
+    help.innerHTML = '<strong>街コロ＋：</strong>基本カードに拡張カードを混ぜて遊びます。';
   } else {
     help.innerHTML = '<strong>街コロ：</strong>基本カードのみ。通常プレイを壊さず、今まで通り遊べます。';
   }
@@ -519,7 +519,7 @@ function phaseGuideText() {
     if (state.phase === 'portChoice') return `${cp?.name || 'プレイヤー'} が港効果を使うか選んでいます。`;
     if (state.phase === 'tunaRoll') {
       const tuna = currentTunaPending();
-      return `${tuna?.playerName || 'プレイヤー'} がマグロ漁船の追加ダイスを振るのを待っています。`;
+      return `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} が ${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振るのを待っています。`;
     }
     if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
     if (state.phase === 'build') return `${cp?.name || 'プレイヤー'} が建設するか選んでいます。`;
@@ -530,7 +530,7 @@ function phaseGuideText() {
   if (state.phase === 'portChoice') return '港効果で出目に+2するか選んでください。';
   if (state.phase === 'tunaRoll') {
     const tuna = currentTunaPending();
-    return tuna?.playerId === myId ? 'マグロ漁船の追加ダイスを振ってください。' : `${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイス待ちです。`;
+    return state.pendingTuna?.rollerId === myId ? `${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振ってください。` : `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} のマグロ漁船追加ダイス待ちです。`;
   }
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
   if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
@@ -643,12 +643,12 @@ function cardDescription(id, card) {
     business: '自分と相手の紫以外の施設を1件ずつ交換する。',
     sushi: '他人のターン。港が完成していれば、出した人から3コイン。モールで+1。',
     flower: '誰のターンでも銀行から1コイン。',
-    flowerShop: '自分のターン。花畑1件につき1コイン。',
+    flowerShop: '自分のターン。花畑1件につき1コイン。モールで+1。',
     pizza: '他人のターン。出した人から1コイン。モールで+1。',
     burger: '他人のターン。出した人から1コイン。モールで+1。',
     sauryBoat: '誰のターンでも、港が完成していれば銀行から3コイン。',
     foodWarehouse: '自分のターン。自分の飲食店1件につき2コイン。',
-    tunaBoat: '誰のターンでも、港が完成していれば追加で2個ダイスを振り、その合計分コイン。',
+    tunaBoat: '誰のターンでも、港が完成していれば追加で2個ダイスを振り、その合計分コイン。追加ダイスには港+2なし。',
     publisher: '自分のターン。全員から、相手の飲食店・商店1件につき1コイン。',
     taxOffice: '自分のターン。10コイン以上持つ相手から半分のコインをもらう。'
   };
@@ -751,11 +751,11 @@ function renderRollNotice() {
   }
   const mine = roll.playerId === myId;
   const name = rollOwnerName(roll);
-  const dice = roll.dice.map((d, i) => diceFace(d, `notice-die d${i + 1}`)).join('');
-  const label = mine ? 'あなたの出目' : `${escapeHtml(name)} の出目`;
+  const label = '現在の出目';
   const fresh = diceJustChanged ? ' fresh' : '';
+  const adjusted = roll.adjustedTotal ? `<span class="roll-adjusted">港なら ${roll.adjustedTotal}</span>` : '';
   el.className = `roll-notice ${mine ? 'mine' : 'opponent'}${fresh}`;
-  el.innerHTML = `<div><strong>${label}</strong><span>${escapeHtml(roll.dice.join(' + '))} = ${roll.total}</span></div><div class="roll-notice-dice">${dice}<b>${roll.total}</b></div>`;
+  el.innerHTML = `<div><strong>${label}</strong><span>${escapeHtml(roll.dice.join(' + '))} = ${roll.total}</span></div><div class="roll-notice-dice"><span class="roll-notice-values">${escapeHtml(roll.dice.join(' + '))}</span><b>${roll.total}</b>${adjusted}</div>`;
 }
 
 function latestNoticeEvent() {
@@ -897,6 +897,20 @@ function confirmHostForceSkip() {
 }
 
 
+function stickyHudRollHtml() {
+  const roll = state?.pendingRoll || state?.lastRoll;
+  if (state?.rolling) {
+    return `<div class="hud-roll rolling"><span>出目</span><strong>振っています...</strong></div>`;
+  }
+  if (!roll?.dice?.length) {
+    return `<div class="hud-roll empty"><span>出目</span><strong>-</strong></div>`;
+  }
+  const mine = roll.playerId === myId;
+  const label = '現在の出目';
+  const adjusted = roll.adjustedTotal ? `<em>港なら ${roll.adjustedTotal}</em>` : '';
+  return `<div class="hud-roll"><span>${label}</span><strong>${escapeHtml(roll.dice.join(' + '))} = ${roll.total}</strong>${adjusted}</div>`;
+}
+
 function stickyHudActionHtml() {
   if (!state || state.status !== 'playing') return '';
   const mine = me();
@@ -921,8 +935,8 @@ function stickyHudActionHtml() {
   }
   if (state.phase === 'tunaRoll') {
     const tuna = currentTunaPending();
-    if (tuna?.playerId === myId) return `<button onclick="rollTunaDice()">追加ダイスを振る</button>`;
-    return `<span class="hud-wait">${escapeHtml(tuna?.playerName || '相手')} のマグロ漁船</span>`;
+    if (state.pendingTuna?.rollerId === myId) return `<button onclick="rollTunaDice()">追加ダイスを振る</button>`;
+    return `<span class="hud-wait">${escapeHtml(state.pendingTuna?.rollerName || '相手')} の追加ダイス待ち</span>`;
   }
   if (state.phase === 'purple') {
     return '<span class="hud-wait">紫カードを選択中</span>';
@@ -963,6 +977,7 @@ function renderStickyHud() {
       <strong>あなた ${mine.coins}🪙</strong>
       <span>${myTurnNow ? 'あなたの番' : `${escapeHtml(cp?.name || '相手')} の番`} / ${phaseLabel}</span>
     </div>
+    ${stickyHudRollHtml()}
     <div class="hud-actions">${stickyHudActionHtml()}</div>
   `;
 }
@@ -1101,8 +1116,8 @@ function renderActions() {
       el.innerHTML = `<p>観戦中です。${escapeHtml(tuna?.playerName || 'プレイヤー')} がマグロ漁船の追加ダイスを振るのを待っています。</p>`;
       return;
     }
-    if (tuna?.playerId !== myId) {
-      el.innerHTML = `<p>${escapeHtml(tuna?.playerName || 'プレイヤー')} がマグロ漁船の追加ダイスを振るのを待っています。</p>${hostControlHtml()}`;
+    if (state.pendingTuna?.rollerId !== myId) {
+      el.innerHTML = `<p>${escapeHtml(state.pendingTuna?.rollerName || '出目を出したプレイヤー')} が、${escapeHtml(tuna?.playerName || 'プレイヤー')} のマグロ漁船追加ダイスを振るのを待っています。</p>${hostControlHtml()}`;
       return;
     }
     if (localRollingCount) {
@@ -1113,7 +1128,7 @@ function renderActions() {
     el.innerHTML = `
       <div class="choice-panel">
         <h3>マグロ漁船：追加ダイス</h3>
-        <p>${escapeHtml(tuna?.playerName || 'あなた')} のマグロ漁船 ${tuna?.count || 1} 隻が発動しました。2個のダイスを振ってください。</p>
+        <p>${escapeHtml(tuna?.playerName || 'プレイヤー')} のマグロ漁船 ${tuna?.count || 1} 隻が発動しました。出目を出したあなたが2個の追加ダイスを振ってください。</p>
         <div class="actions"><button onclick="rollTunaDice()">追加ダイスを振る</button></div>
       </div>${hostControlHtml()}`;
     return;

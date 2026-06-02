@@ -4840,81 +4840,629 @@ body {
   }
 }
 
-
-/* Orange-unified polish: remove mixed blue accents while preserving facility color cards. */
+/* =========================================================
+   COHESIVE REDESIGN LAYER v1
+   Goal: one-base-color UI, readable flat controls, natural card colors.
+   This block intentionally overrides previous experimental styling.
+   ========================================================= */
 :root {
-  --ui-blue: #e8782e !important;
-  --ui-blue-dark: #9a4317 !important;
-  --accent: #e8782e !important;
-  --accent-dark: #9a4317 !important;
+  --mk-accent: #f97316;
+  --mk-accent-dark: #c2410c;
+  --mk-accent-soft: #ffedd5;
+  --mk-accent-pale: #fff7ed;
+  --mk-ink: #1f2937;
+  --mk-muted: #667085;
+  --mk-line: #e6d7c8;
+  --mk-panel: #ffffff;
+  --mk-bg: #fff6ec;
+  --mk-shadow: 0 8px 24px rgba(71, 43, 20, .09);
+  --mk-radius: 20px;
+  --mk-green: #16a34a;
+  --mk-green-soft: #ecfdf3;
+  --mk-blue-card: #e8f4ff;
+  --mk-blue-line: #93c5fd;
+  --mk-green-card: #eafaf0;
+  --mk-green-line: #86efac;
+  --mk-red-card: #fff0f2;
+  --mk-red-line: #fda4af;
+  --mk-purple-card: #f5f0ff;
+  --mk-purple-line: #c4b5fd;
 }
-#statusTitle,
-.turn-summary-head strong,
-.money-summary-title,
-.deck-select-head strong,
+
+html, body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(251,146,60,.20), transparent 32%),
+    linear-gradient(180deg, #fff7ed 0%, #fffaf5 45%, #fef3e7 100%) !important;
+  color: var(--mk-ink) !important;
+  font-family: ui-rounded, "Hiragino Maru Gothic ProN", "Hiragino Sans", "Yu Gothic", system-ui, -apple-system, BlinkMacSystemFont, sans-serif !important;
+}
+
+#app {
+  max-width: 1180px !important;
+}
+
+.hero {
+  background: linear-gradient(135deg, #fff 0%, #fff7ed 100%) !important;
+  border: 1px solid var(--mk-line) !important;
+  box-shadow: var(--mk-shadow) !important;
+  border-radius: 28px !important;
+  padding: 22px 24px !important;
+}
+.hero h1 {
+  color: #7c2d12 !important;
+  letter-spacing: .01em !important;
+}
+.hero .eyebrow {
+  color: var(--mk-accent-dark) !important;
+  font-weight: 1000 !important;
+}
+
+.panel,
+.turn-action-card,
+.status-area,
+.players-panel,
+.logs-panel,
+.room-ops,
+.host-admin {
+  background: var(--mk-panel) !important;
+  border: 1px solid var(--mk-line) !important;
+  border-radius: var(--mk-radius) !important;
+  box-shadow: var(--mk-shadow) !important;
+  color: var(--mk-ink) !important;
+}
+
 .panel h2,
-.hero h1,
-.roll-notice span,
-.recent-notice.market span {
-  color: #6f3519 !important;
+.turn-action-head h2,
+.status-area #statusTitle {
+  color: #7c2d12 !important;
+  font-weight: 1000 !important;
+  letter-spacing: .01em !important;
 }
-button:not(.secondary):not(.danger):not(.outline-danger),
-.copy-code-btn.accent,
-.deck-choice-card input:checked + .deck-choice-top .deck-choice-badge,
-.turn-chip.mine {
-  background: #e8782e !important;
-  border-color: #d46625 !important;
-  color: #fffaf4 !important;
+.panel h2::before {
+  background: var(--mk-accent) !important;
   box-shadow: none !important;
+}
+
+/* Flat, readable buttons. No pseudo-3D. */
+button,
+.copy-code-btn,
+button.accent,
+button.primary {
+  background: var(--mk-accent) !important;
+  color: #fff !important;
+  border: 1px solid var(--mk-accent) !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+  text-shadow: none !important;
+  font-weight: 900 !important;
+  letter-spacing: .01em !important;
+  transform: none !important;
+}
+button:hover:not(:disabled),
+.copy-code-btn:hover:not(:disabled) {
+  background: #ea580c !important;
+  border-color: #ea580c !important;
+  box-shadow: none !important;
+  transform: none !important;
+}
+button:active:not(:disabled) {
+  transform: translateY(1px) !important;
 }
 button.secondary,
+button.outline,
 #turnActions button.secondary,
 .hud-actions button.secondary {
-  background: #fff7ed !important;
-  border-color: #f4b183 !important;
+  background: #fff !important;
   color: #7c2d12 !important;
+  border: 1px solid #fed7aa !important;
   box-shadow: none !important;
 }
-.player.current,
-.me-player.current,
-.deck-choice-card:has(input:checked),
-.turn-action-card {
-  border-color: #f3a15f !important;
-  outline-color: rgba(232,120,46,.18) !important;
+button.secondary:hover:not(:disabled),
+#turnActions button.secondary:hover:not(:disabled) {
+  background: var(--mk-accent-pale) !important;
+  color: #7c2d12 !important;
 }
-.panel h2::before,
-.dice-label::before {
-  background: #e8782e !important;
+button.danger,
+button.outline-danger {
+  background: #fff1f2 !important;
+  color: #be123c !important;
+  border-color: #fecdd3 !important;
 }
-/* Do not show secondary calculated port result inside dice/result components. The explanatory text below is enough. */
-.deck-mode-chip,
-.roll-adjusted,
-.hud-roll em {
-  display: none !important;
+button:disabled {
+  background: #f3f4f6 !important;
+  border-color: #e5e7eb !important;
+  color: #9ca3af !important;
 }
-/* Keep dice totals consistent and non-blue/non-orange-glob. */
-.dice-stage.playable-roll .dice-total,
-#turnActions .dice-stage.playable-roll .dice-total,
-.roll-notice-total,
-.hud-roll {
+
+/* Status: clear hierarchy, no overlaps. */
+.topbar {
+  gap: 18px !important;
+  align-items: stretch !important;
+}
+.status-area {
+  padding: 20px !important;
+  overflow: hidden !important;
+}
+#statusTitle {
+  margin-bottom: 8px !important;
+  font-size: clamp(1.25rem, 2.2vw, 1.8rem) !important;
+}
+#statusText {
+  color: var(--mk-muted) !important;
+  line-height: 1.75 !important;
+  overflow-wrap: anywhere !important;
+}
+#statusText strong,
+.status-guide {
+  display: block !important;
+  color: var(--mk-ink) !important;
+  font-size: 1rem !important;
+  margin-bottom: 8px !important;
+}
+.status-chip-row {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 7px !important;
+  margin-top: 8px !important;
+}
+.status-chip {
+  display: inline-flex !important;
+  align-items: center !important;
+  min-height: 28px !important;
+  padding: 4px 9px !important;
+  border-radius: 999px !important;
+  border: 1px solid #fed7aa !important;
   background: #fff7ed !important;
-  border: 1px solid #f0d0b5 !important;
-  color: #5f351f !important;
+  color: #7c2d12 !important;
+  font-size: .82rem !important;
+  font-weight: 900 !important;
+  box-shadow: none !important;
 }
-.dice-stage.playable-roll .dice-total span,
-#turnActions .dice-stage.playable-roll .dice-total span,
+.status-chip.phase,
+.status-chip.roll,
+.status-chip.coins,
+.status-chip.deck,
+.status-chip.rolling {
+  background: #fff7ed !important;
+  color: #7c2d12 !important;
+  border-color: #fed7aa !important;
+}
+
+/* Turn actions. */
+.turn-action-card {
+  padding: 18px !important;
+}
+#turnActions p {
+  color: var(--mk-muted) !important;
+  line-height: 1.65 !important;
+}
+#turnActions .actions,
+.actions.wrap {
+  display: flex !important;
+  flex-wrap: wrap !important;
+  gap: 10px !important;
+}
+
+/* Dice: stable size, natural total layout. */
+:root {
+  --dice-size: 64px;
+  --pip-size: 8px;
+  --dice-stage-min-h: 154px;
+  --dice-stage-min-w: 270px;
+}
+.dice-stage,
+.dice-stage.ready,
+.dice-stage.rolling-live,
+.dice-stage.playable-roll,
+#turnActions .dice-stage,
+#turnActions .dice-stage.ready,
+#turnActions .dice-stage.rolling-live,
+#turnActions .dice-stage.playable-roll {
+  min-width: var(--dice-stage-min-w) !important;
+  min-height: var(--dice-stage-min-h) !important;
+  padding: 16px !important;
+  border-radius: 18px !important;
+  background: #fffaf5 !important;
+  border: 1px solid #fed7aa !important;
+  box-shadow: none !important;
+  display: grid !important;
+  grid-template-columns: auto auto !important;
+  grid-template-areas: "total dice" "label dice" !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 8px 14px !important;
+}
+.dice-stage.rolling-live,
+#turnActions .dice-stage.rolling-live {
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "label" "dice" !important;
+}
+.dice-label {
+  grid-area: label !important;
+  color: #9a3412 !important;
+  font-weight: 1000 !important;
+  font-size: .84rem !important;
+  letter-spacing: .08em !important;
+  text-align: center !important;
+}
+.dice-row,
+.result-dice-row,
+.rolling-row,
+.roll-notice-dice,
+#turnActions .dice-row,
+#turnActions .result-dice-row {
+  grid-area: dice !important;
+  display: flex !important;
+  flex-direction: row !important;
+  flex-wrap: nowrap !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+}
+.dice-face,
+#turnActions .dice-face,
+.roll-notice-dice .dice-face {
+  width: var(--dice-size) !important;
+  height: var(--dice-size) !important;
+  min-width: var(--dice-size) !important;
+  min-height: var(--dice-size) !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-rows: repeat(3, 1fr) !important;
+  padding: 10px !important;
+  gap: 4px !important;
+  border-radius: 15px !important;
+  background: #ffffff !important;
+  border: 2px solid #d1d5db !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.8), 0 3px 0 rgba(17,24,39,.08) !important;
+}
+.dice-face i,
+#turnActions .dice-face i,
+.roll-notice-dice .dice-face i {
+  width: var(--pip-size) !important;
+  height: var(--pip-size) !important;
+  border-radius: 50% !important;
+  align-self: center !important;
+  justify-self: center !important;
+  background: transparent !important;
+}
+.dice-face i.on {
+  background: #111827 !important;
+}
+.dice-total,
+#turnActions .dice-total,
+.roll-notice-total,
+.turn-summary-roll {
+  grid-area: total !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 7px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  color: var(--mk-ink) !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+.dice-total span,
+#turnActions .dice-total span,
 .roll-notice-total span,
-.hud-roll span {
-  color: #8a4b24 !important;
-}
-.dice-stage.playable-roll .dice-total strong,
-#turnActions .dice-stage.playable-roll .dice-total strong,
-.roll-notice-total b,
-.roll-notice-total strong,
-.hud-roll-value {
-  color: #432411 !important;
-  -webkit-text-fill-color: #432411 !important;
+.turn-summary-roll span {
+  color: var(--mk-muted) !important;
   background: transparent !important;
   border: 0 !important;
+  padding: 0 !important;
+  font-size: .8rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .04em !important;
+}
+.dice-total strong,
+#turnActions .dice-total strong,
+.roll-notice-total b,
+.roll-notice-total strong,
+.turn-summary-roll strong,
+.hud-roll strong,
+.hud-roll-value {
+  display: inline !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
   box-shadow: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  text-shadow: none !important;
+  font-size: 1.15rem !important;
+  font-weight: 1000 !important;
+  font-family: inherit !important;
+}
+.dice-stage.ready .dice-total,
+.dice-stage.rolling-live .dice-total,
+#turnActions .dice-stage.ready .dice-total,
+#turnActions .dice-stage.rolling-live .dice-total {
+  visibility: hidden !important;
+}
+.deck-mode-chip,
+.dice-total .deck-mode-chip,
+.roll-notice-total .deck-mode-chip {
+  display: none !important;
+}
+
+/* Player cards and emphasis. */
+.player {
+  background: #fff !important;
+  border: 1px solid var(--mk-line) !important;
+  border-radius: 18px !important;
+  box-shadow: 0 5px 16px rgba(71,43,20,.06) !important;
+}
+.player.current {
+  outline: 0 !important;
+  border-color: #86efac !important;
+  box-shadow: 0 0 0 3px rgba(22,163,74,.18), 0 8px 22px rgba(22,163,74,.08) !important;
+}
+.player.me-player {
+  border-color: #fb923c !important;
+}
+.turn-chip {
+  background: var(--mk-green-soft) !important;
+  color: #166534 !important;
+  border-color: #bbf7d0 !important;
+  box-shadow: none !important;
+}
+.player h3 .coins,
+.coins {
+  background: var(--mk-accent-pale) !important;
+  color: #7c2d12 !important;
+  border: 1px solid #fed7aa !important;
+  border-radius: 999px !important;
+  padding: 4px 9px !important;
+}
+
+/* Facility card colors: keep meaning, make them pleasant. */
+.card,
+.owned-card {
+  border-radius: 16px !important;
+  box-shadow: none !important;
+}
+.card.blue,
+.owned-card.blue { background: var(--mk-blue-card) !important; border-color: var(--mk-blue-line) !important; }
+.card.green,
+.owned-card.green { background: var(--mk-green-card) !important; border-color: var(--mk-green-line) !important; }
+.card.red,
+.owned-card.red { background: var(--mk-red-card) !important; border-color: var(--mk-red-line) !important; }
+.card.purple,
+.owned-card.purple { background: var(--mk-purple-card) !important; border-color: var(--mk-purple-line) !important; }
+.card.landmark-card.complete { background: #fef9c3 !important; border-color: #facc15 !important; }
+.card.landmark-card.incomplete { background: #f8fafc !important; border-color: #dbe2ea !important; }
+.card h4,
+.owned-card strong {
+  color: var(--mk-ink) !important;
+}
+.card::before,
+.owned-card::before {
+  box-shadow: none !important;
+}
+.trigger-badges span,
+.market-trigger .trigger-badges span {
+  background: #fff !important;
+  color: var(--mk-ink) !important;
+  border: 1px solid rgba(17,24,39,.16) !important;
+  box-shadow: none !important;
+}
+
+/* Turn summary and money summary. */
+.recent-notice,
+.turn-summary-panel {
+  background: #ffffff !important;
+  border: 1px solid var(--mk-line) !important;
+  border-radius: 18px !important;
+  box-shadow: var(--mk-shadow) !important;
+  color: var(--mk-ink) !important;
+}
+.turn-summary-head strong {
+  color: #7c2d12 !important;
+}
+.turn-summary-roll span::after {
+  content: "の結果";
+}
+.turn-summary-list li {
+  background: #fffaf5 !important;
+  border: 1px solid #fde7d0 !important;
+  border-radius: 14px !important;
+}
+.money-summary-box {
+  background: #f9fafb !important;
+  border: 1px solid #e5e7eb !important;
+  border-radius: 16px !important;
+}
+.money-summary-row.plus { background: #ecfdf3 !important; color: #166534 !important; }
+.money-summary-row.minus { background: #fff1f2 !important; color: #9f1239 !important; }
+.money-summary-row.zero { background: #f8fafc !important; color: #475569 !important; }
+.money-summary-diff { color: inherit !important; }
+
+/* Sticky HUD: useful, not flashy. */
+.sticky-hud {
+  background: rgba(255,255,255,.96) !important;
+  border: 1px solid var(--mk-line) !important;
+  border-radius: 20px !important;
+  box-shadow: 0 10px 30px rgba(71,43,20,.14) !important;
+  backdrop-filter: blur(10px) !important;
+}
+.sticky-hud.my-turn {
+  border-color: #fb923c !important;
+  box-shadow: 0 10px 30px rgba(249,115,22,.16) !important;
+}
+.hud-info strong {
+  color: #7c2d12 !important;
+}
+.hud-info span,
+.hud-actions .hud-wait {
+  color: var(--mk-muted) !important;
+}
+.hud-roll {
+  background: #fff7ed !important;
+  border: 1px solid #fed7aa !important;
+  border-radius: 999px !important;
+  box-shadow: none !important;
+  padding: 6px 10px !important;
+}
+.hud-roll span,
+.hud-roll small {
+  color: #7c2d12 !important;
+}
+.hud-roll-wait {
+  background: transparent !important;
+  color: #7c2d12 !important;
+  -webkit-text-fill-color: #7c2d12 !important;
+  border: 0 !important;
+  box-shadow: none !important;
+}
+
+/* Logs. */
+.logs {
+  background: #fffaf5 !important;
+  border: 1px solid #fde7d0 !important;
+  border-radius: 14px !important;
+}
+.log-item,
+.logs div {
+  border-color: rgba(148, 108, 74, .18) !important;
+}
+
+@media (max-width: 760px) {
+  :root {
+    --dice-size: 56px;
+    --pip-size: 7px;
+    --dice-stage-min-h: 144px;
+    --dice-stage-min-w: 230px;
+  }
+  .topbar {
+    grid-template-columns: 1fr !important;
+  }
+  .dice-stage,
+  #turnActions .dice-stage {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  .sticky-hud {
+    grid-template-columns: 1fr !important;
+  }
+  .hud-actions button {
+    flex: 1 1 auto !important;
+  }
+}
+
+
+/* Dice result unification: result view now uses the same visual format as the rolling dice. */
+.dice-stage.result-stage,
+#turnActions .dice-stage.result-stage {
+  min-width: var(--dice-stage-min-w) !important;
+  min-height: var(--dice-stage-min-h) !important;
+  padding: 16px !important;
+  border-radius: 18px !important;
+  background: #fffaf5 !important;
+  border: 1px solid #fed7aa !important;
+  box-shadow: none !important;
+  display: grid !important;
+  grid-template-columns: 1fr !important;
+  grid-template-areas: "label" "dice" "total" !important;
+  align-items: center !important;
+  justify-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+}
+.dice-stage.result-stage .dice-label,
+#turnActions .dice-stage.result-stage .dice-label {
+  grid-area: label !important;
+}
+.dice-stage.result-stage .dice-row,
+.dice-stage.result-stage .result-dice-row,
+#turnActions .dice-stage.result-stage .dice-row,
+#turnActions .dice-stage.result-stage .result-dice-row {
+  grid-area: dice !important;
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex-wrap: nowrap !important;
+  gap: 10px !important;
+}
+.dice-stage.result-stage .dice-face,
+#turnActions .dice-stage.result-stage .dice-face {
+  width: var(--dice-size) !important;
+  height: var(--dice-size) !important;
+  min-width: var(--dice-size) !important;
+  min-height: var(--dice-size) !important;
+  display: grid !important;
+  grid-template-columns: repeat(3, 1fr) !important;
+  grid-template-rows: repeat(3, 1fr) !important;
+  padding: 10px !important;
+  gap: 4px !important;
+  border-radius: 15px !important;
+  background: #ffffff !important;
+  border: 2px solid #d1d5db !important;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.8), 0 3px 0 rgba(17,24,39,.08) !important;
+}
+.dice-stage.result-stage .dice-face i,
+#turnActions .dice-stage.result-stage .dice-face i {
+  width: var(--pip-size) !important;
+  height: var(--pip-size) !important;
+  border-radius: 50% !important;
+  align-self: center !important;
+  justify-self: center !important;
+  background: transparent !important;
+}
+.dice-stage.result-stage .dice-face i.on,
+#turnActions .dice-stage.result-stage .dice-face i.on {
+  background: #111827 !important;
+}
+.dice-stage.result-stage .dice-total,
+#turnActions .dice-stage.result-stage .dice-total {
+  grid-area: total !important;
+  visibility: visible !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 7px !important;
+  padding: 6px 10px !important;
+  border-radius: 999px !important;
+  border: 1px solid #e5e7eb !important;
+  background: #fff !important;
+  box-shadow: none !important;
+  white-space: nowrap !important;
+}
+.dice-stage.result-stage .dice-total span,
+#turnActions .dice-stage.result-stage .dice-total span {
+  color: var(--mk-muted) !important;
+  font-size: .8rem !important;
+  font-weight: 900 !important;
+}
+.dice-stage.result-stage .dice-total strong,
+#turnActions .dice-stage.result-stage .dice-total strong {
+  display: inline !important;
+  width: auto !important;
+  height: auto !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.15rem !important;
+  font-weight: 1000 !important;
+}
+@media (max-width: 760px) {
+  .dice-stage.result-stage,
+  #turnActions .dice-stage.result-stage {
+    width: 100% !important;
+    min-width: 0 !important;
+  }
 }

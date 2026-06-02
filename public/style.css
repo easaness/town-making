@@ -5358,111 +5358,109 @@ button:disabled {
   }
 }
 
-
-/* Dice result unification: result view now uses the same visual format as the rolling dice. */
-.dice-stage.result-stage,
-#turnActions .dice-stage.result-stage {
-  min-width: var(--dice-stage-min-w) !important;
-  min-height: var(--dice-stage-min-h) !important;
-  padding: 16px !important;
-  border-radius: 18px !important;
-  background: #fffaf5 !important;
-  border: 1px solid #fed7aa !important;
-  box-shadow: none !important;
+/* Safe dice repair: keep the stable natural-redesign structure and prevent result/rolling layout jumps. */
+#turnActions .dice-stage,
+.dice-stage.playable-roll,
+.dice-stage.rolling-live,
+.dice-stage.ready {
+  box-sizing: border-box !important;
+  min-height: 168px !important;
+}
+#turnActions .dice-stage.playable-roll,
+.dice-stage.playable-roll {
   display: grid !important;
-  grid-template-columns: 1fr !important;
-  grid-template-areas: "label" "dice" "total" !important;
+  grid-template-columns: auto auto !important;
+  grid-template-rows: auto auto !important;
+  grid-template-areas:
+    "label label"
+    "total dice" !important;
   align-items: center !important;
-  justify-items: center !important;
   justify-content: center !important;
-  gap: 10px !important;
+  column-gap: 18px !important;
+  row-gap: 10px !important;
 }
-.dice-stage.result-stage .dice-label,
-#turnActions .dice-stage.result-stage .dice-label {
-  grid-area: label !important;
-}
-.dice-stage.result-stage .dice-row,
-.dice-stage.result-stage .result-dice-row,
-#turnActions .dice-stage.result-stage .dice-row,
-#turnActions .dice-stage.result-stage .result-dice-row {
-  grid-area: dice !important;
+.dice-stage.playable-roll .dice-label { grid-area: label !important; }
+.dice-stage.playable-roll .dice-row { grid-area: dice !important; }
+.dice-stage.playable-roll .dice-total { grid-area: total !important; }
+
+.dice-row,
+.result-dice-row,
+.rolling-row,
+#turnActions .dice-row,
+#turnActions .result-dice-row,
+#turnActions .rolling-row {
   display: flex !important;
   flex-direction: row !important;
   align-items: center !important;
   justify-content: center !important;
-  flex-wrap: nowrap !important;
   gap: 10px !important;
+  flex-wrap: nowrap !important;
 }
-.dice-stage.result-stage .dice-face,
-#turnActions .dice-stage.result-stage .dice-face {
-  width: var(--dice-size) !important;
-  height: var(--dice-size) !important;
-  min-width: var(--dice-size) !important;
-  min-height: var(--dice-size) !important;
+.dice-face,
+.dice-stage .dice-face,
+#turnActions .dice-face,
+.roll-notice-dice .dice-face {
+  width: 64px !important;
+  height: 64px !important;
+  min-width: 64px !important;
+  min-height: 64px !important;
   display: grid !important;
   grid-template-columns: repeat(3, 1fr) !important;
   grid-template-rows: repeat(3, 1fr) !important;
-  padding: 10px !important;
-  gap: 4px !important;
-  border-radius: 15px !important;
-  background: #ffffff !important;
-  border: 2px solid #d1d5db !important;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.8), 0 3px 0 rgba(17,24,39,.08) !important;
+  place-items: center !important;
+  gap: 5px !important;
+  box-sizing: border-box !important;
 }
-.dice-stage.result-stage .dice-face i,
-#turnActions .dice-stage.result-stage .dice-face i {
-  width: var(--pip-size) !important;
-  height: var(--pip-size) !important;
-  border-radius: 50% !important;
-  align-self: center !important;
-  justify-self: center !important;
-  background: transparent !important;
+.dice-face i,
+.dice-stage .dice-face i,
+#turnActions .dice-face i,
+.roll-notice-dice .dice-face i {
+  width: 8px !important;
+  height: 8px !important;
+  border-radius: 999px !important;
+  opacity: 0 !important;
+  display: block !important;
 }
-.dice-stage.result-stage .dice-face i.on,
-#turnActions .dice-stage.result-stage .dice-face i.on {
-  background: #111827 !important;
+.dice-face i.on,
+.dice-stage .dice-face i.on,
+#turnActions .dice-face i.on,
+.roll-notice-dice .dice-face i.on {
+  opacity: 1 !important;
 }
-.dice-stage.result-stage .dice-total,
-#turnActions .dice-stage.result-stage .dice-total {
-  grid-area: total !important;
-  visibility: visible !important;
+.dice-total,
+#turnActions .dice-total {
   display: inline-flex !important;
   align-items: center !important;
-  justify-content: center !important;
-  gap: 7px !important;
-  padding: 6px 10px !important;
-  border-radius: 999px !important;
-  border: 1px solid #e5e7eb !important;
-  background: #fff !important;
-  box-shadow: none !important;
+  gap: 8px !important;
   white-space: nowrap !important;
 }
-.dice-stage.result-stage .dice-total span,
-#turnActions .dice-stage.result-stage .dice-total span {
-  color: var(--mk-muted) !important;
-  font-size: .8rem !important;
+.dice-total span,
+#turnActions .dice-total span {
   font-weight: 900 !important;
 }
-.dice-stage.result-stage .dice-total strong,
-#turnActions .dice-stage.result-stage .dice-total strong {
-  display: inline !important;
-  width: auto !important;
-  height: auto !important;
+.dice-total strong,
+#turnActions .dice-total strong {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
   min-width: 0 !important;
   min-height: 0 !important;
   padding: 0 !important;
-  border: 0 !important;
-  background: transparent !important;
-  box-shadow: none !important;
-  color: #111827 !important;
-  -webkit-text-fill-color: #111827 !important;
-  font-size: 1.15rem !important;
-  font-weight: 1000 !important;
+  color: #2f2418 !important;
+  -webkit-text-fill-color: #2f2418 !important;
 }
-@media (max-width: 760px) {
-  .dice-stage.result-stage,
-  #turnActions .dice-stage.result-stage {
-    width: 100% !important;
-    min-width: 0 !important;
+@media (max-width: 560px) {
+  .dice-face,
+  .dice-stage .dice-face,
+  #turnActions .dice-face,
+  .roll-notice-dice .dice-face {
+    width: 56px !important;
+    height: 56px !important;
+    min-width: 56px !important;
+    min-height: 56px !important;
+  }
+  #turnActions .dice-stage.playable-roll,
+  .dice-stage.playable-roll {
+    column-gap: 12px !important;
   }
 }

@@ -602,10 +602,8 @@ function diceTray(roll, label = '出目') {
   const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
   return `<div class="dice-stage playable-roll${fresh}">
     <div class="dice-label">${label}</div>
-    <div class="dice-result-line">
-      <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
-      <div class="dice-row result-dice-row">${faces}</div>
-    </div>
+    <div class="dice-row result-dice-row">${faces}</div>
+    <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
   </div>`;
 }
 
@@ -719,14 +717,31 @@ function renderStatus() {
       ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
       : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
   }
-  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
-  const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
-  const rollText = state.lastRoll ? ` / 合計 ${rollExpression(state.lastRoll)}` : '';
-  const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
-  const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
-  const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
-  const deckText = state.deckMode === 'plus' ? ' / デッキ 街コロ＋' : ' / デッキ 街コロ';
-  $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}${deckText}`)}</span>`;
+  const phaseText = state.phase === 'roll' ? 'ダイス' : state.phase === 'reroll' ? '振り直し' : state.phase === 'portChoice' ? '港選択' : state.phase === 'tunaRoll' ? 'マグロ漁船' : state.phase === 'purple' ? '紫カード' : '建設';
+  const statusChips = [
+    `<span class="status-chip phase">${escapeHtml(phaseText)}</span>`
+  ];
+  if (state.rolling) {
+    statusChips.push(`<span class="status-chip rolling">${escapeHtml(state.rolling.playerName || 'プレイヤー')}がダイス中</span>`);
+  }
+  if (state.lastRoll) {
+    statusChips.push(`<span class="status-chip roll">合計 ${escapeHtml(rollExpression(state.lastRoll))}</span>`);
+  }
+  if (m) {
+    statusChips.push(`<span class="status-chip coins">あなた ${m.coins ?? 0}コイン</span>`);
+  } else {
+    statusChips.push('<span class="status-chip">観戦中</span>');
+  }
+  statusChips.push(`<span class="status-chip">場 ${Object.keys(state.market || {}).length}種類</span>`);
+  statusChips.push(`<span class="status-chip">山札 ${state.deckCount ?? 0}枚</span>`);
+  if (state.spectatorCount) {
+    statusChips.push(`<span class="status-chip">観戦 ${state.spectatorCount}人</span>`);
+  }
+  statusChips.push(`<span class="status-chip deck">${state.deckMode === 'plus' ? '街コロ＋' : '街コロ'}</span>`);
+  $('statusText').innerHTML = `
+    <strong class="status-guide">${escapeHtml(phaseGuideText())}</strong>
+    <div class="status-chip-row">${statusChips.join('')}</div>
+  `;
   const rollNoticeEl = $('rollNotice');
   if (rollNoticeEl) rollNoticeEl.classList.add('hidden');
   renderRecentNotice();

@@ -5202,3 +5202,392 @@ button.secondary,
   border-color: #d49a60 !important;
   color: #3a2115 !important;
 }
+
+/* =========================================================
+   FINAL VISUAL BALANCE PASS
+   Goal: warm orange base, readable flat controls, no accidental blue chrome.
+   This layer only changes presentation; game/card logic is untouched.
+   ========================================================= */
+:root {
+  --bg: #e6bb86 !important;
+  --panel: #fffaf2 !important;
+  --ink: #2a1a12 !important;
+  --muted: #675140 !important;
+  --line: #dc9b59 !important;
+  --accent: #d9661d !important;
+  --accent-dark: #9d3f0f !important;
+  --soft-orange: #fff2df;
+  --soft-orange-2: #ffe4c2;
+  --green-accent: #16845b;
+  --green-soft: #e9f8ef;
+  --danger: #be2f2f;
+}
+
+html, body {
+  background:
+    radial-gradient(circle at 14% -4%, rgba(255,235,199,.92), transparent 360px),
+    radial-gradient(circle at 92% 6%, rgba(214,102,29,.16), transparent 420px),
+    linear-gradient(180deg, #f0c998 0%, #e8bd86 50%, #dcad76 100%) !important;
+  color: var(--ink) !important;
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "Hiragino Sans", "Yu Gothic", sans-serif !important;
+}
+
+#app { max-width: 1200px !important; }
+
+.hero {
+  background:
+    radial-gradient(circle at 92% 70%, rgba(217,102,29,.11), transparent 150px),
+    linear-gradient(135deg, #fff4df 0%, #ffe6c4 100%) !important;
+  border: 1px solid rgba(157,63,15,.18) !important;
+  box-shadow: 0 18px 38px rgba(70,38,13,.14) !important;
+  color: var(--ink) !important;
+}
+.hero h1 {
+  color: #2a1a12 !important;
+  -webkit-text-fill-color: #2a1a12 !important;
+  text-shadow: none !important;
+  letter-spacing: -0.04em !important;
+  font-weight: 950 !important;
+}
+.hero p { color: #50301e !important; font-weight: 760 !important; }
+.eyebrow {
+  background: rgba(255,255,255,.54) !important;
+  border: 1px solid rgba(217,102,29,.25) !important;
+  color: #b54d15 !important;
+  -webkit-text-fill-color: #b54d15 !important;
+  letter-spacing: .08em !important;
+}
+
+.panel,
+.topbar,
+.players-panel,
+.logs-panel,
+.turn-action-card,
+.host-admin,
+.room-ops,
+.deck-select-box,
+.choice-panel {
+  background: #fffaf2 !important;
+  border: 1.5px solid rgba(157,63,15,.42) !important;
+  box-shadow: 0 10px 24px rgba(67,35,11,.10) !important;
+  color: var(--ink) !important;
+}
+.panel h2,
+.turn-action-head h2,
+#statusTitle {
+  color: #2c1b12 !important;
+  -webkit-text-fill-color: #2c1b12 !important;
+  font-weight: 900 !important;
+}
+.panel h2::before {
+  background: var(--accent) !important;
+  box-shadow: none !important;
+}
+
+/* Lobby deck selector: warm, readable, not washed out. */
+.deck-select-box {
+  background: #fff7eb !important;
+  border-color: rgba(217,102,29,.62) !important;
+}
+.deck-choice-card {
+  background: #fffaf3 !important;
+  border: 2px solid rgba(217,102,29,.42) !important;
+  box-shadow: none !important;
+  color: var(--ink) !important;
+}
+.deck-choice-card:hover,
+.deck-choice-card:has(input:checked) {
+  border-color: var(--accent) !important;
+  background: #fff4e4 !important;
+  outline: 3px solid rgba(217,102,29,.16) !important;
+}
+.deck-choice-title { color: var(--ink) !important; font-weight: 900 !important; }
+.deck-choice-desc, .deck-mode-help { color: #513827 !important; }
+.deck-choice-badge {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 0 !important;
+}
+.deck-choice-badge.plus {
+  background: var(--green-accent) !important;
+  color: #fff !important;
+}
+
+/* Room badge: fix unreadable dark-on-dark room code. */
+.badge.room-badge {
+  background: #3a2518 !important;
+  border: 1px solid rgba(255,255,255,.16) !important;
+  color: #fff8ef !important;
+  box-shadow: none !important;
+}
+#roomCodeText { color: #fff8ef !important; font-weight: 900 !important; }
+.copy-code-btn,
+.sound-toggle {
+  background: #e1641a !important;
+  color: #fff !important;
+  border: 1px solid #c95412 !important;
+  box-shadow: none !important;
+}
+.volume-control {
+  background: #fff1dd !important;
+  color: #3a2518 !important;
+  border: 1px solid rgba(217,102,29,.35) !important;
+}
+
+/* Inputs and typography. */
+label, .small, #statusText, #statusText span, p { color: #5c4637 !important; }
+#statusText { line-height: 1.75 !important; max-width: 100% !important; overflow-wrap: anywhere !important; }
+#statusText strong { color: #2a1a12 !important; font-weight: 900 !important; }
+input,
+.choice-panel select {
+  background: #fffdf8 !important;
+  border: 1.5px solid rgba(92,70,55,.18) !important;
+  color: var(--ink) !important;
+  box-shadow: none !important;
+}
+input:focus,
+.choice-panel select:focus {
+  border-color: var(--accent) !important;
+  outline: 3px solid rgba(217,102,29,.16) !important;
+}
+
+/* Flat readable buttons. */
+button {
+  border-radius: 12px !important;
+  box-shadow: none !important;
+  transform: none !important;
+  text-shadow: none !important;
+  font-weight: 900 !important;
+}
+button:not(.secondary):not(.danger):not(.outline-danger) {
+  background: var(--accent) !important;
+  color: #fff !important;
+  border: 1px solid #bf5418 !important;
+}
+button:not(.secondary):not(.danger):not(.outline-danger):hover {
+  background: #c95412 !important;
+  transform: none !important;
+}
+button.secondary,
+#turnActions button.secondary,
+.hud-actions button.secondary {
+  background: #fff1dd !important;
+  color: #76340f !important;
+  border: 1px solid rgba(217,102,29,.5) !important;
+}
+button.secondary:hover,
+#turnActions button.secondary:hover,
+.hud-actions button.secondary:hover {
+  background: #ffe6c5 !important;
+}
+button:disabled,
+button[disabled],
+.card button:disabled,
+.landmark-card button:disabled {
+  background: #ead0b4 !important;
+  color: #7b573d !important;
+  border: 1px solid #d6ab7c !important;
+  opacity: 1 !important;
+  cursor: not-allowed !important;
+}
+button.danger,
+button.outline-danger { color: #fff !important; background: var(--danger) !important; border-color: #9f2323 !important; }
+
+/* Status/action panels: balanced hierarchy. */
+.topbar { gap: 16px !important; }
+.status-area,
+.turn-action-card {
+  min-width: 0 !important;
+}
+.turn-action-card {
+  background: #fff6e8 !important;
+  border-color: rgba(217,102,29,.52) !important;
+}
+.turn-action-head { margin-bottom: 10px !important; }
+
+/* Player cards and current turn emphasis. */
+.player {
+  background: #fffaf2 !important;
+  border: 1.5px solid rgba(157,63,15,.35) !important;
+  box-shadow: 0 6px 16px rgba(67,35,11,.08) !important;
+}
+.player.current {
+  border-color: var(--accent) !important;
+  outline: 3px solid rgba(217,102,29,.16) !important;
+  background: #fff5e6 !important;
+}
+.player.me-player.current {
+  border-color: var(--green-accent) !important;
+  outline: 3px solid rgba(22,132,91,.18) !important;
+}
+.turn-chip.mine { background: var(--accent) !important; color: #fff !important; }
+.turn-chip:not(.mine) { background: #fff1dd !important; color: #8a3b12 !important; border: 1px solid rgba(217,102,29,.34) !important; }
+.coins {
+  background: #fff1d2 !important;
+  border: 1px solid rgba(217,102,29,.4) !important;
+  color: #7a390f !important;
+}
+
+/* Facility card colors remain meaningful, but look cleaner. */
+.card,
+.owned-card {
+  border: 1.5px solid rgba(67,35,11,.18) !important;
+  box-shadow: none !important;
+}
+.card.blue, .owned-card.blue { background: #dfefff !important; border-color: #9ec7ee !important; }
+.card.green, .owned-card.green { background: #e1f5df !important; border-color: #9ed59a !important; }
+.card.red, .owned-card.red { background: #ffe3df !important; border-color: #e7a29a !important; }
+.card.purple, .owned-card.purple { background: #f0e4ff !important; border-color: #c7a6ec !important; }
+.card.landmark-card,
+.card.landmark-card.incomplete {
+  background: #f7f1ea !important;
+  border-color: #ccb6a0 !important;
+  color: #3a281d !important;
+}
+.card.landmark-card.complete {
+  background: #fff0b8 !important;
+  border-color: #d8a723 !important;
+}
+.market-trigger .trigger-badges span,
+.trigger-badges span {
+  background: #fff8ef !important;
+  color: #7a390f !important;
+  border-color: rgba(217,102,29,.35) !important;
+}
+
+/* Dice: keep current working structure, only tune size/spacing/readability. */
+.dice-stage,
+.dice-stage.playable-roll,
+.dice-stage.ready,
+.dice-stage.rolling-live {
+  background: #fff7e8 !important;
+  border: 1.5px solid rgba(217,102,29,.38) !important;
+  box-shadow: none !important;
+  min-height: 132px !important;
+}
+.dice-row,
+.result-dice-row,
+.rolling-row {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  flex-wrap: nowrap !important;
+}
+.dice-face {
+  width: 60px !important;
+  height: 60px !important;
+  min-width: 60px !important;
+  border-radius: 14px !important;
+  background: #fff !important;
+  border: 2px solid #3b2a20 !important;
+  box-shadow: 0 3px 0 rgba(59,42,32,.18) !important;
+}
+.dice-face i.on { background: #25160f !important; }
+.dice-total {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #3a281d !important;
+}
+.dice-total span { color: #7a634f !important; font-weight: 900 !important; }
+.dice-total strong,
+.roll-notice-total b,
+.hud-roll strong {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #25160f !important;
+  -webkit-text-fill-color: #25160f !important;
+  font-weight: 950 !important;
+}
+
+/* Turn summary and final money: readable cards, not washed out. */
+.turn-summary-panel,
+.recent-notice {
+  background: #fff7e8 !important;
+  border: 1.5px solid rgba(217,102,29,.42) !important;
+  color: #2a1a12 !important;
+  box-shadow: none !important;
+}
+.turn-summary-head strong { color: #2a1a12 !important; }
+.turn-summary-list li {
+  background: #fffdf8 !important;
+  border: 1px solid rgba(157,63,15,.18) !important;
+}
+.turn-summary-roll {
+  background: #fff1dd !important;
+  border: 1px solid rgba(217,102,29,.35) !important;
+  color: #3a281d !important;
+}
+.money-summary-box {
+  background: #fffdf8 !important;
+  border: 1.5px solid rgba(157,63,15,.26) !important;
+}
+.money-summary-row.plus { background: #e9f8ef !important; border-color: #93d7b7 !important; }
+.money-summary-row.minus { background: #fff0ee !important; border-color: #e7a19a !important; }
+.money-summary-row.zero { background: #f5f0ea !important; border-color: #d7c7b7 !important; }
+.money-summary-diff { color: inherit !important; }
+.money-summary-row.plus .money-summary-diff { color: #11724d !important; }
+.money-summary-row.minus .money-summary-diff { color: #b42318 !important; }
+
+/* Fixed bar: warm, readable, no accidental orange blobs behind numbers. */
+.sticky-hud {
+  background: #fff7e8 !important;
+  border: 1.5px solid rgba(157,63,15,.36) !important;
+  box-shadow: 0 -8px 20px rgba(67,35,11,.12) !important;
+}
+.hud-info strong { color: #76340f !important; }
+.hud-info span { color: #654b38 !important; }
+.hud-roll {
+  background: #fffdf8 !important;
+  border: 1px solid rgba(157,63,15,.22) !important;
+  border-radius: 12px !important;
+  box-shadow: none !important;
+}
+.hud-roll span,
+.hud-roll small { color: #654b38 !important; }
+.hud-roll strong,
+.hud-roll-wait,
+.hud-roll-value {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  color: #25160f !important;
+  -webkit-text-fill-color: #25160f !important;
+  padding: 0 !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  width: auto !important;
+  height: auto !important;
+}
+.hud-actions button { box-shadow: none !important; }
+
+/* Logs and room operations. */
+.log,
+.logs {
+  color: #3a281d !important;
+}
+.log {
+  background: #fffdf8 !important;
+  border-color: rgba(157,63,15,.18) !important;
+}
+.room-ops,
+.room-confirm,
+.admin-status,
+.admin-confirm,
+.host-admin {
+  background: #fff7e8 !important;
+  border-color: rgba(217,102,29,.42) !important;
+  color: #2a1a12 !important;
+}
+.room-ops summary,
+.host-admin summary { color: #76340f !important; }
+
+/* Responsive safety: prevent text from colliding with panel borders. */
+.status-area, .turn-action-card, .panel, .player, .card { overflow: hidden !important; }
+#statusText, .turn-summary-panel, .hud-info span, .owned-card-effect { overflow-wrap: anywhere !important; }
+@media (max-width: 720px) {
+  .dice-stage, .dice-stage.playable-roll, .dice-stage.ready, .dice-stage.rolling-live { min-height: 120px !important; }
+  .dice-face { width: 54px !important; height: 54px !important; min-width: 54px !important; }
+}

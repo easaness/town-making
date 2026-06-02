@@ -599,9 +599,11 @@ function diceTray(roll, label = '出目') {
   if (!roll) return '<div class="dice-stage idle"><span>ダイス待ち</span></div>';
   const fresh = diceJustChanged ? ' result-roll' : '';
   const adjusted = roll.adjustedTotal ? ` <span class="deck-mode-chip">港なら ${roll.adjustedTotal}</span>` : '';
-  return `<div class="dice-stage text-roll${fresh}">
+  const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
+  return `<div class="dice-stage playable-roll${fresh}">
     <div class="dice-label">${label}</div>
-    <div class="dice-total readable-roll"><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
+    <div class="dice-row result-dice-row">${faces}</div>
+    <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
   </div>`;
 }
 
@@ -766,14 +768,15 @@ function renderRollNotice() {
   const fresh = diceJustChanged ? ' fresh' : '';
   const adjusted = roll.adjustedTotal ? `<span class="roll-adjusted">港なら ${roll.adjustedTotal}</span>` : '';
   el.className = `roll-notice clean-roll ${mine ? 'mine' : 'opponent'}${fresh}`;
+  const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
   el.innerHTML = `
     <div class="roll-notice-main">
       <strong>${label}</strong>
       <span>${escapeHtml(name)}さん</span>
     </div>
     <div class="roll-notice-result">
-      <span class="roll-notice-values">${escapeHtml(rollExpression(roll))}</span>
-      ${adjusted}
+      <div class="roll-notice-dice">${faces}</div>
+      <div class="roll-notice-total"><span>合計</span><b>${escapeHtml(rollExpression(roll))}</b>${adjusted}</div>
     </div>`;
 }
 

@@ -312,9 +312,10 @@ function setRoomUrl(code) {
 
 function createFreshRoom() {
   const name = $('nameInput')?.value.trim() || localStorage.getItem('machikoroPlayerName') || 'ゲスト';
+  const deckMode = document.querySelector('input[name="deckMode"]:checked')?.value || 'base';
   clearSavedSession();
   myId = null;
-  socket.emit('createRoom', { name }, (res) => {
+  socket.emit('createRoom', { name, deckMode }, (res) => {
     if (!res?.ok) return showMessage(res?.message || '新しいルームを作成できませんでした。');
     rememberSession(res.code, res.playerId, name);
     setRoomUrl(res.code);
@@ -487,12 +488,14 @@ function phaseGuideText() {
   if (state.status === 'finished') return state.winnerId === myId ? 'あなたの勝利です。ホストは同じメンバーでもう一度遊べます。' : 'ゲーム終了です。ホストがもう一度遊ぶを押すと同じ部屋で再戦できます。';
   if (state.rolling) return `${state.rolling.playerName || 'プレイヤー'} がダイスを振っています。結果を待ってください。`;
   if (!mine) {
+    if (state.phase === 'portChoice') return `${cp?.name || 'プレイヤー'} が港効果を使うか選んでいます。`;
     if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
     if (state.phase === 'build') return `${cp?.name || 'プレイヤー'} が建設するか選んでいます。`;
     return `${cp?.name || 'プレイヤー'} の操作待ちです。`;
   }
   if (state.phase === 'roll') return 'ダイスを振ってください。駅が完成していれば2個も選べます。';
   if (state.phase === 'reroll') return '電波塔で振り直すか、この出目で進めるか選んでください。';
+  if (state.phase === 'portChoice') return '港効果で出目に+2するか選んでください。';
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
   if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
   return '';
@@ -526,7 +529,7 @@ function resultTableHtml() {
     .map((p, i) => {
       const lm = Object.values(p.landmarks || {}).filter(Boolean).length;
       const built = Object.values(p.cards || {}).reduce((a, b) => a + b, 0);
-      return `<tr><td>${i + 1}</td><td>${escapeHtml(p.name)}</td><td>${lm}/4</td><td>${p.coins}🪙</td><td>${built}</td></tr>`;
+      return `<tr><td>${i + 1}</td><td>${escapeHtml(p.name)}</td><td>${lm}/${Object.keys(state.landmarks || {}).filter(id => !state.landmarks[id].displayOnly).length}</td><td>${p.coins}🪙</td><td>${built}</td></tr>`;
     }).join('');
   return `<div class="result-box"><h3>リザルト</h3><table class="result-table"><thead><tr><th>#</th><th>プレイヤー</th><th>ランドマーク</th><th>コイン</th><th>施設</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -534,7 +537,7 @@ function resultTableHtml() {
 function diceStateKey(next) {
   const roll = next?.pendingRoll || next?.lastRoll;
   if (!roll) return '';
-  return `${next.phase}:${roll.dice.join('-')}:${roll.total}`;
+  return `${next.phase}:${roll.dice.join('-')}:${roll.total}:${roll.adjustedTotal || ''}`;
 }
 
 function dicePips(value) {
@@ -563,7 +566,7 @@ function diceTray(roll, label = '出目') {
   return `<div class="dice-stage ${rolling}">
     <div class="dice-label">${label}</div>
     <div class="dice-row">${dice}</div>
-    <div class="dice-total">合計 <strong>${roll.total}</strong></div>
+    <div class="dice-total">合計 <strong>${roll.total}</strong>${roll.adjustedTotal ? ` <span class="deck-mode-chip">港なら ${roll.adjustedTotal}</span>` : ''}</div>
   </div>`;
 }
 
@@ -601,7 +604,17 @@ function cardDescription(id, card) {
     market: '自分のターンに麦畑・リンゴ園1件につき2コイン。',
     stadium: '自分のターンに全員から2コイン。',
     tv: '自分のターンに相手1人を選び、最大5コインもらう。',
-    business: '自分と相手の紫以外の施設を1件ずつ交換する。'
+    business: '自分と相手の紫以外の施設を1件ずつ交換する。',
+    sushi: '他人のターン。港が完成していれば、出した人から3コイン。モールで+1。',
+    flower: '誰のターンでも銀行から2コイン。',
+    flowerShop: '自分のターン。花畑1件につき1コイン。',
+    pizza: '他人のターン。出した人から1コイン。モールで+1。',
+    burger: '他人のターン。出した人から1コイン。モールで+1。',
+    sauryBoat: '誰のターンでも、港が完成していれば銀行から3コイン。',
+    foodWarehouse: '自分のターン。自分の飲食店1件につき2コイン。',
+    tunaBoat: '誰のターンでも、港が完成していれば追加で2個ダイスを振り、その合計分コイン。',
+    publisher: '自分のターン。全員から、相手の飲食店・商店1件につき1コイン。',
+    taxOffice: '自分のターン。10コイン以上持つ相手から半分のコインをもらう。'
   };
   return map[id] || card.name;
 }
@@ -635,7 +648,7 @@ function renderStatus() {
   if (victoryBanner) victoryBanner.classList.add('hidden');
   if (state.status === 'waiting') {
     $('statusTitle').textContent = '待機中';
-    $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。`;
+    $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。${state.deckMode === 'plus' ? ' デッキ: 街コロ＋' : ' デッキ: 街コロ'}`;
     return;
   }
   if (state.status === 'finished') {
@@ -667,13 +680,14 @@ function renderStatus() {
       ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
       : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
   }
-  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
+  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
   const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
   const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
-  $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}`)}</span>`;
+  const deckText = state.deckMode === 'plus' ? ' / デッキ 街コロ＋' : ' / デッキ 街コロ';
+  $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}${deckText}`)}</span>`;
   renderRollNotice();
   renderRecentNotice();
 }
@@ -815,7 +829,7 @@ function renderHostAdmin() {
     return;
   }
   const cp = currentPlayer();
-  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', purple: '紫カード選択', build: '建設' }[state.phase] || state.phase;
+  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', purple: '紫カード選択', build: '建設' }[state.phase] || state.phase;
   body.innerHTML = `
     <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
     <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
@@ -866,6 +880,9 @@ function stickyHudActionHtml() {
   if (state.phase === 'build') {
     return `<button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>`;
   }
+  if (state.phase === 'portChoice') {
+    return `<button onclick="emitWithMessage('usePortRoll')">港+2</button><button class="secondary" onclick="emitWithMessage('acceptPortRoll')">そのまま</button>`;
+  }
   if (state.phase === 'purple') {
     return '<span class="hud-wait">紫カードを選択中</span>';
   }
@@ -890,7 +907,9 @@ function renderStickyHud() {
       ? 'ダイス'
       : state.phase === 'reroll'
         ? '振り直し'
-        : state.phase === 'purple'
+        : state.phase === 'portChoice'
+          ? '港'
+          : state.phase === 'purple'
           ? '紫カード'
           : state.phase === 'build'
             ? '建設'
@@ -922,8 +941,9 @@ function renderPlayers() {
           <div class="owned-card-effect">${cardDescription(id, card)}</div>
         </div>`;
       }).join('') || '<div class="small empty-owned">建築済み施設はまだありません。</div>';
-    const landmarks = Object.entries(p.landmarks)
-      .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id].text)}">${done ? '✅' : '⬜'} ${state.landmarks[id].name}</span>`).join('');
+    const officeTag = state.landmarks?.office ? `<span class="tag landmark-tag complete" title="${escapeHtml(state.landmarks.office.text)}">常時 ${state.landmarks.office.name}</span>` : '';
+    const landmarks = officeTag + Object.entries(p.landmarks)
+      .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id]?.text || '')}">${done ? '✅' : '⬜'} ${state.landmarks[id]?.name || id}</span>`).join('');
     const playerClasses = ['player', idx === state.currentPlayerIndex ? 'current' : '', p.id === myId ? 'me-player' : ''].filter(Boolean).join(' ');
     const turnLabel = idx === state.currentPlayerIndex ? `<div class="turn-chip ${p.id === myId ? 'mine' : ''}">${p.id === myId ? 'あなたの番' : '現在の番'}</div>` : '';
     return `<div class="${playerClasses}">
@@ -1008,6 +1028,28 @@ function renderActions() {
     el.innerHTML = `
       <div class="dice-stage rolling-live"><div class="dice-label">${label}</div><div class="dice-row rolling-row">${previewDice}</div></div>
       <p>${name} がダイスを振っています。</p>${hostControlHtml()}`;
+    return;
+  }
+  if (state.phase === 'portChoice') {
+    const roll = state.pendingRoll;
+    const dice = diceTray(roll, '港効果の出目');
+    if (!me()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>観戦中です。${escapeHtml(cp?.name || 'プレイヤー')} が港効果を使うか選んでいます。</p>`;
+      return;
+    }
+    if (!isMyTurn()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>${escapeHtml(cp?.name || 'プレイヤー')} が港効果を使うか選んでいます。</p>${hostControlHtml()}`;
+      return;
+    }
+    el.innerHTML = `
+      ${dice}
+      <p>港効果で出目 ${roll?.total ?? ''} を ${roll?.adjustedTotal ?? ''} にできます。</p>
+      <div class="actions">
+        <button onclick="emitWithMessage('usePortRoll')">+2して進める</button>
+        <button class="secondary" onclick="emitWithMessage('acceptPortRoll')">そのまま進める</button>
+      </div>${hostControlHtml()}`;
     return;
   }
   if (state.phase === 'purple') {
@@ -1095,6 +1137,13 @@ function renderBuilds() {
   const canBuild = state.status === 'playing' && state.phase === 'build' && isMyTurn();
   const m = me();
   $('landmarks').innerHTML = Object.entries(state.landmarks).map(([id, lm]) => {
+    if (lm.displayOnly) {
+      return `<article class="card landmark-card complete display-only">
+        <h4>${lm.name}<span>常時</span></h4>
+        <p>${lm.text}</p>
+        <button disabled>常時有効</button>
+      </article>`;
+    }
     const done = m?.landmarks[id];
     const affordable = (m?.coins || 0) >= lm.cost;
     return `<article class="card landmark-card ${done ? 'complete' : 'incomplete'}">

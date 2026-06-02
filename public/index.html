@@ -34,6 +34,12 @@
           <input id="codeInput" maxlength="5" placeholder="参加時のみ" />
         </label>
       </div>
+      <div class="deck-select-box">
+        <strong>プレイするデッキ</strong>
+        <label><input type="radio" name="deckMode" value="base" checked /> 街コロ</label>
+        <label><input type="radio" name="deckMode" value="plus" /> 街コロ＋</label>
+        <span class="small">街コロ＋は基本カードに拡張カードを混ぜます。役所は常時有効ルールの表示のみです。</span>
+      </div>
       <div class="actions">
         <button id="createBtn">ルーム作成</button>
         <button id="joinBtn" class="secondary">参加</button>

@@ -12,7 +12,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(express.static('public'));
 
-const CARD_DEFS = {
+const BASE_CARD_DEFS = {
   wheat: { name: '麦畑', dice: [1], cost: 1, color: 'blue', kind: 'grain', industry: 'grain' },
   ranch: { name: '牧場', dice: [2], cost: 1, color: 'blue', kind: 'cow', industry: 'cow' },
   bakery: { name: 'パン屋', dice: [2, 3], cost: 1, color: 'green', kind: 'shop', industry: 'shop' },
@@ -30,12 +30,56 @@ const CARD_DEFS = {
   market: { name: '青果市場', dice: [11, 12], cost: 2, color: 'green', kind: 'market', industry: 'market' }
 };
 
-const LANDMARKS = {
+const PLUS_CARD_DEFS = {
+  sushi: { name: '寿司屋', dice: [1], cost: 1, color: 'red', kind: 'restaurant', industry: 'restaurant', plusOnly: true },
+  flower: { name: '花畑', dice: [4], cost: 2, color: 'blue', kind: 'grain', industry: 'grain', plusOnly: true },
+  flowerShop: { name: 'フラワーショップ', dice: [6], cost: 1, color: 'green', kind: 'shop', industry: 'shop', plusOnly: true },
+  pizza: { name: 'ピザ屋', dice: [7], cost: 1, color: 'red', kind: 'restaurant', industry: 'restaurant', plusOnly: true },
+  burger: { name: 'バーガーショップ', dice: [8], cost: 1, color: 'red', kind: 'restaurant', industry: 'restaurant', plusOnly: true },
+  sauryBoat: { name: 'サンマ漁船', dice: [8], cost: 2, color: 'blue', kind: 'fish', industry: 'fish', plusOnly: true },
+  foodWarehouse: { name: '食品倉庫', dice: [12, 13], cost: 2, color: 'green', kind: 'factory', industry: 'factory', plusOnly: true },
+  tunaBoat: { name: 'マグロ漁船', dice: [12, 13, 14], cost: 5, color: 'blue', kind: 'fish', industry: 'fish', plusOnly: true },
+  publisher: { name: '出版社', dice: [7], cost: 5, color: 'purple', kind: 'major', industry: 'major', plusOnly: true },
+  taxOffice: { name: '税務署', dice: [8, 9], cost: 4, color: 'purple', kind: 'major', industry: 'major', plusOnly: true }
+};
+
+const CARD_DEFS = { ...BASE_CARD_DEFS, ...PLUS_CARD_DEFS };
+
+const BASE_LANDMARKS = {
   station: { name: '駅', cost: 4, text: 'ダイスを2個振れる' },
   mall: { name: 'ショッピングモール', cost: 10, text: '商店・飲食店収入+1' },
   amusement: { name: '遊園地', cost: 16, text: 'ぞろ目なら追加ターン' },
   tower: { name: '電波塔', cost: 22, text: '毎ターン1回だけ振り直せる' }
 };
+
+const PLUS_LANDMARKS = {
+  port: { name: '港', cost: 2, text: 'ダイス合計10以上なら+2できる。漁船・寿司屋も有効化' },
+  airport: { name: '空港', cost: 30, text: '建設せずに手番を終えると10コインもらう' }
+};
+
+const OFFICE_DISPLAY = {
+  office: { name: '役所', cost: 0, text: '施設購入前に所持金0なら1コインもらう。常時有効', displayOnly: true }
+};
+
+const LANDMARKS = { ...BASE_LANDMARKS, ...PLUS_LANDMARKS };
+
+function isPlusMode(roomOrMode) {
+  const mode = typeof roomOrMode === 'string' ? roomOrMode : roomOrMode?.deckMode;
+  return mode === 'plus';
+}
+
+function getCardDefs(roomOrMode) {
+  return isPlusMode(roomOrMode) ? CARD_DEFS : BASE_CARD_DEFS;
+}
+
+function getLandmarkDefs(roomOrMode, includeDisplay = true) {
+  if (!isPlusMode(roomOrMode)) return BASE_LANDMARKS;
+  return includeDisplay ? { ...OFFICE_DISPLAY, ...BASE_LANDMARKS, ...PLUS_LANDMARKS } : { ...BASE_LANDMARKS, ...PLUS_LANDMARKS };
+}
+
+function initialLandmarks(deckMode = 'base') {
+  return Object.fromEntries(Object.keys(getLandmarkDefs(deckMode, false)).map(id => [id, false]));
+}
 
 const rooms = new Map();
 
@@ -50,7 +94,11 @@ function normalizeLoadedRoom(room) {
     player.connected = false;
   });
   room.rolling = null;
+  room.deckMode = room.deckMode === 'plus' ? 'plus' : 'base';
   room.logs = Array.isArray(room.logs) ? room.logs : [];
+  room.players.forEach((player) => {
+    player.landmarks = { ...initialLandmarks(room.deckMode), ...(player.landmarks || {}) };
+  });
   room.coinEvents = Array.isArray(room.coinEvents) ? room.coinEvents : [];
   room.specialEvents = Array.isArray(room.specialEvents) ? room.specialEvents : [];
   room.deck = Array.isArray(room.deck) ? room.deck : [];
@@ -110,9 +158,9 @@ function roomCode() {
   return Math.random().toString(36).slice(2, 7).toUpperCase();
 }
 
-function makeDeck() {
+function makeDeck(deckMode = 'base') {
   const deck = [];
-  for (const [id, card] of Object.entries(CARD_DEFS)) {
+  for (const [id, card] of Object.entries(getCardDefs(deckMode))) {
     const copies = card.color === 'purple' ? 4 : 6;
     for (let i = 0; i < copies; i++) deck.push(id);
   }
@@ -143,27 +191,27 @@ function fillMarket(room) {
   return drawn;
 }
 
-function makePlayer(playerId, name, socketId) {
+function makePlayer(playerId, name, socketId, deckMode = 'base') {
   return {
     id: playerId,
     socketId,
     name: (name || 'ゲスト').slice(0, 18),
     coins: 3,
     cards: { wheat: 1, bakery: 1 },
-    landmarks: { station: false, mall: false, amusement: false, tower: false },
+    landmarks: initialLandmarks(deckMode),
     connected: true
   };
 }
 
 
-function resetPlayerForNewGame(player) {
+function resetPlayerForNewGame(player, deckMode = 'base') {
   player.coins = 3;
   player.cards = { wheat: 1, bakery: 1 };
-  player.landmarks = { station: false, mall: false, amusement: false, tower: false };
+  player.landmarks = initialLandmarks(deckMode);
 }
 
 function resetRoomToWaiting(room) {
-  room.players.forEach(resetPlayerForNewGame);
+  room.players.forEach(player => resetPlayerForNewGame(player, room.deckMode));
   room.status = 'waiting';
   room.currentPlayerIndex = 0;
   room.deck = [];
@@ -187,6 +235,7 @@ function publicRoom(room) {
     status: room.status,
     spectators: room.spectators || [],
     spectatorCount: (room.spectators || []).filter(sp => sp.connected).length,
+    deckMode: room.deckMode || 'base',
     players: room.players.map(({ socketId, ...player }) => player),
     currentPlayerIndex: room.currentPlayerIndex,
     market: room.market,
@@ -202,8 +251,8 @@ function publicRoom(room) {
     logs: room.logs.slice(-60),
     coinEvents: (room.coinEvents || []).slice(-30),
     specialEvents: (room.specialEvents || []).slice(-20),
-    cards: CARD_DEFS,
-    landmarks: LANDMARKS,
+    cards: getCardDefs(room),
+    landmarks: getLandmarkDefs(room, true),
     lastUpdatedAt: room.lastUpdatedAt || Date.now()
   };
 }
@@ -292,6 +341,22 @@ function applyMallBonus(player, cardId, base) {
   return base;
 }
 
+function countByIndustry(player, industry) {
+  return Object.entries(player.cards || {}).reduce((sum, [cardId, n]) => {
+    const card = CARD_DEFS[cardId];
+    return sum + (card?.industry === industry ? n : 0);
+  }, 0);
+}
+
+function countRestaurantAndShop(player, industry = null) {
+  return Object.entries(player.cards || {}).reduce((sum, [cardId, n]) => {
+    const card = CARD_DEFS[cardId];
+    if (!card) return sum;
+    if (industry) return sum + (card.industry === industry ? n : 0);
+    return sum + (card.industry === 'restaurant' || card.industry === 'shop' ? n : 0);
+  }, 0);
+}
+
 function reverseOrderFrom(room, rollerIndex) {
   const order = [];
   const n = room.players.length;
@@ -301,20 +366,25 @@ function reverseOrderFrom(room, rollerIndex) {
   return order;
 }
 
-function resolveRoll(room, diceValues) {
-  const total = diceValues.reduce((a, b) => a + b, 0);
+function resolveRoll(room, diceValues, overrideTotal = null) {
+  const rawTotal = diceValues.reduce((a, b) => a + b, 0);
+  const total = overrideTotal || rawTotal;
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
-  room.lastRoll = { dice: diceValues, total, playerId: roller.id, playerName: roller.name };
-  log(room, `${roller.name} が ${diceValues.join(' + ')} = ${total} を出しました。`);
+  room.lastRoll = { dice: diceValues, total, rawTotal, playerId: roller.id, playerName: roller.name };
+  log(room, `${roller.name} が ${diceValues.join(' + ')} = ${rawTotal}${total !== rawTotal ? `（港で ${total}）` : ''} を出しました。`);
 
   // Red cards: payments to other players first, counterclockwise.
   for (const idx of reverseOrderFrom(room, rollerIndex)) {
     const owner = room.players[idx];
-    for (const cardId of ['cafe', 'family']) {
+    const redCards = isPlusMode(room) ? ['sushi', 'cafe', 'pizza', 'burger', 'family'] : ['cafe', 'family'];
+    for (const cardId of redCards) {
       const c = count(owner, cardId);
       if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
-      const base = cardId === 'cafe' ? 1 : 2;
+      if (cardId === 'sushi' && !has(owner, 'port')) continue;
+      let base = 1;
+      if (cardId === 'family') base = 2;
+      if (cardId === 'sushi') base = 3;
       const each = applyMallBonus(owner, cardId, base);
       const paid = stealCoins(room, roller, owner, each * c, CARD_DEFS[cardId].name);
       if (paid > 0) {
@@ -328,13 +398,20 @@ function resolveRoll(room, diceValues) {
 
   // Blue cards: every player's income from bank.
   for (const p of room.players) {
-    const incomes = [
-      ['wheat', 1], ['ranch', 1], ['forest', 1], ['mine', 5], ['apple', 3]
-    ];
+    const incomes = isPlusMode(room)
+      ? [['wheat', 1], ['ranch', 1], ['flower', 2], ['forest', 1], ['sauryBoat', 3], ['mine', 5], ['apple', 3], ['tunaBoat', 0]]
+      : [['wheat', 1], ['ranch', 1], ['forest', 1], ['mine', 5], ['apple', 3]];
     for (const [cardId, base] of incomes) {
       const c = count(p, cardId);
-      if (c && CARD_DEFS[cardId].dice.includes(total)) {
-        const amount = base * c;
+      if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
+      if ((cardId === 'sauryBoat' || cardId === 'tunaBoat') && !has(p, 'port')) continue;
+      let amount = base * c;
+      if (cardId === 'tunaBoat') {
+        const tunaDice = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
+        amount = tunaDice.reduce((a, b) => a + b, 0) * c;
+        log(room, `${p.name} のマグロ漁船：追加ダイス ${tunaDice.join(' + ')} = ${amount / c}。`);
+      }
+      if (amount > 0) {
         bankIncome(room, p, amount, CARD_DEFS[cardId].name);
         const text = `${p.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`;
         log(room, text);
@@ -344,16 +421,18 @@ function resolveRoll(room, diceValues) {
   }
 
   // Green cards: roller only.
-  const greenChecks = ['bakery', 'convenience', 'cheese', 'furniture', 'market'];
+  const greenChecks = isPlusMode(room) ? ['bakery', 'convenience', 'flowerShop', 'cheese', 'furniture', 'market', 'foodWarehouse'] : ['bakery', 'convenience', 'cheese', 'furniture', 'market'];
   for (const cardId of greenChecks) {
     const c = count(roller, cardId);
     if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
     let amount = 0;
     if (cardId === 'bakery') amount = applyMallBonus(roller, cardId, 1) * c;
     if (cardId === 'convenience') amount = applyMallBonus(roller, cardId, 3) * c;
+    if (cardId === 'flowerShop') amount = count(roller, 'flower') * c;
     if (cardId === 'cheese') amount = 3 * count(roller, 'ranch') * c;
     if (cardId === 'furniture') amount = 3 * (count(roller, 'forest') + count(roller, 'mine')) * c;
     if (cardId === 'market') amount = 2 * (count(roller, 'wheat') + count(roller, 'apple')) * c;
+    if (cardId === 'foodWarehouse') amount = 2 * countRestaurantAndShop(roller, 'restaurant') * c;
     if (amount > 0) {
       bankIncome(room, roller, amount, CARD_DEFS[cardId].name);
       const text = `${roller.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`;
@@ -364,6 +443,32 @@ function resolveRoll(room, diceValues) {
 
   // Purple cards: roller only. Stadium is automatic; TV and Business Center need a player choice.
   const purpleQueue = [];
+  if (isPlusMode(room) && total === 7 && count(roller, 'publisher')) {
+    for (let i = 0; i < room.players.length; i++) {
+      if (i === rollerIndex) continue;
+      const other = room.players[i];
+      const due = countRestaurantAndShop(other) * count(roller, 'publisher');
+      const paid = stealCoins(room, other, roller, due, '出版社');
+      if (paid > 0) {
+        const text = `${roller.name} の出版社：${other.name} から ${paid} コイン。`;
+        log(room, text);
+        specialEvent(room, 'effect-steal', roller, text, { cardId: 'publisher', amount: paid, targetId: other.id });
+      }
+    }
+  }
+  if (isPlusMode(room) && (total === 8 || total === 9) && count(roller, 'taxOffice')) {
+    for (let i = 0; i < room.players.length; i++) {
+      if (i === rollerIndex) continue;
+      const other = room.players[i];
+      if (other.coins < 10) continue;
+      const paid = stealCoins(room, other, roller, Math.floor(other.coins / 2), '税務署');
+      if (paid > 0) {
+        const text = `${roller.name} の税務署：${other.name} から ${paid} コイン。`;
+        log(room, text);
+        specialEvent(room, 'effect-steal', roller, text, { cardId: 'taxOffice', amount: paid, targetId: other.id });
+      }
+    }
+  }
   if (total === 6) {
     if (count(roller, 'stadium')) {
       for (let i = 0; i < room.players.length; i++) {
@@ -471,6 +576,23 @@ function checkWinner(room, player) {
   }
 }
 
+function canUsePortAdjustment(player, diceValues) {
+  const total = diceValues.reduce((a, b) => a + b, 0);
+  return has(player, 'port') && diceValues.length === 2 && total >= 10;
+}
+
+function handleRolledDice(room, player, dice, diceCount) {
+  if (isPlusMode(room) && canUsePortAdjustment(player, dice)) {
+    const total = dice.reduce((a, b) => a + b, 0);
+    room.pendingRoll = { dice, diceCount, playerId: player.id, playerName: player.name, total, rawTotal: total, adjustedTotal: total + 2, portChoice: true };
+    room.phase = 'portChoice';
+    room.canReroll = false;
+    log(room, `${player.name} は港効果で出目 ${total} を ${total + 2} にできます。`);
+    return;
+  }
+  resolveRoll(room, dice);
+}
+
 
 function reconnectPlayerToRoom(socket, room, player, cb, message = '再接続しました。') {
   player.connected = true;
@@ -522,15 +644,17 @@ io.on('connection', (socket) => {
     cb?.({ ok: true });
   });
 
-  socket.on('createRoom', ({ name }, cb) => {
+  socket.on('createRoom', ({ name, deckMode }, cb) => {
     detachSocketFromCurrentRoom(socket);
     let code = roomCode();
     while (rooms.has(code)) code = roomCode();
     const newPlayerId = randomUUID();
-    const player = makePlayer(newPlayerId, name, socket.id);
+    const selectedDeckMode = deckMode === 'plus' ? 'plus' : 'base';
+    const player = makePlayer(newPlayerId, name, socket.id, selectedDeckMode);
     const room = {
       code,
       hostId: player.id,
+      deckMode: selectedDeckMode,
       status: 'waiting',
       players: [player],
       currentPlayerIndex: 0,
@@ -627,7 +751,7 @@ io.on('connection', (socket) => {
     }
     if (room.players.length >= 4) return cb?.({ ok: false, message: 'このルームは満員です。' });
     const newPlayerId = randomUUID();
-    const player = makePlayer(newPlayerId, name, socket.id);
+    const player = makePlayer(newPlayerId, name, socket.id, room.deckMode);
     room.players.push(player);
     socket.join(room.code);
     socket.data.roomCode = room.code;
@@ -642,7 +766,7 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
     if (room.players.length < 1) return cb?.({ ok: false, message: '1人以上で開始してください。' });
-    room.deck = makeDeck();
+    room.deck = makeDeck(room.deckMode);
     room.market = {};
     fillMarket(room);
     room.status = 'playing';
@@ -680,12 +804,12 @@ io.on('connection', (socket) => {
       const dice = Array.from({ length: countDice }, () => 1 + Math.floor(Math.random() * 6));
       currentRoom.rolling = null;
       if (has(currentPlayer, 'tower')) {
-        currentRoom.pendingRoll = { dice, diceCount: countDice };
+        currentRoom.pendingRoll = { dice, diceCount: countDice, playerId: currentPlayer.id, playerName: currentPlayer.name, total: dice.reduce((a, b) => a + b, 0), rawTotal: dice.reduce((a, b) => a + b, 0) };
         currentRoom.phase = 'reroll';
         currentRoom.canReroll = true;
         log(currentRoom, `${currentPlayer.name} が ${dice.join(' + ')} = ${dice.reduce((a, b) => a + b, 0)} を出しました。電波塔で振り直すか選べます。`);
       } else {
-        resolveRoll(currentRoom, dice);
+        handleRolledDice(currentRoom, currentPlayer, dice, countDice);
       }
       emitRoom(currentRoom);
     }, 1100);
@@ -699,7 +823,7 @@ io.on('connection', (socket) => {
     const dice = room.pendingRoll.dice;
     room.pendingRoll = null;
     room.canReroll = false;
-    resolveRoll(room, dice);
+    handleRolledDice(room, player, dice, dice.length);
     cb?.({ ok: true });
     emitRoom(room);
   });
@@ -725,11 +849,36 @@ io.on('connection', (socket) => {
       currentRoom.pendingRoll = null;
       currentRoom.canReroll = false;
       log(currentRoom, `${currentPlayer.name} が電波塔で振り直しました。`);
-      resolveRoll(currentRoom, dice);
+      handleRolledDice(currentRoom, currentPlayer, dice, countDice);
       emitRoom(currentRoom);
     }, 1100);
   });
 
+
+  socket.on('acceptPortRoll', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'portChoice' || !room.pendingRoll?.portChoice) return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const dice = room.pendingRoll.dice;
+    room.pendingRoll = null;
+    resolveRoll(room, dice);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('usePortRoll', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'portChoice' || !room.pendingRoll?.portChoice) return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId || !has(player, 'port')) return cb?.({ ok: false, message: '港を使えません。' });
+    const dice = room.pendingRoll.dice;
+    const adjustedTotal = room.pendingRoll.adjustedTotal;
+    room.pendingRoll = null;
+    resolveRoll(room, dice, adjustedTotal);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
 
   socket.on('purpleTv', ({ targetId }, cb) => {
     const room = rooms.get(socket.data.roomCode);
@@ -789,7 +938,7 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
-    const card = CARD_DEFS[cardId];
+    const card = getCardDefs(room)[cardId];
     if (!card) return cb?.({ ok: false, message: 'カードがありません。' });
     if (!room.market || !room.market[cardId]) return cb?.({ ok: false, message: `${card.name} は現在の場にありません。` });
     if (player.coins < card.cost) return cb?.({ ok: false, message: 'コインが足りません。' });
@@ -825,7 +974,7 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
-    const landmark = LANDMARKS[landmarkId];
+    const landmark = getLandmarkDefs(room, false)[landmarkId];
     if (!landmark) return cb?.({ ok: false, message: 'ランドマークがありません。' });
     if (player.landmarks[landmarkId]) return cb?.({ ok: false, message: 'すでに完成済みです。' });
     if (player.coins < landmark.cost) return cb?.({ ok: false, message: 'コインが足りません。' });
@@ -843,6 +992,12 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    if (isPlusMode(room) && has(player, 'airport')) {
+      bankIncome(room, player, 10, '空港');
+      const text = `${player.name} は空港効果で銀行から10コインを得ました。`;
+      log(room, text);
+      specialEvent(room, 'effect-income', player, text, { landmarkId: 'airport', amount: 10 });
+    }
     log(room, `${player.name} は建設せずに手番を終えました。`);
     advanceTurn(room);
     cb?.({ ok: true });

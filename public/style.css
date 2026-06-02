@@ -1658,3 +1658,38 @@ button:disabled {
 #startBtn.hidden {
   display: none !important;
 }
+
+.deck-select-box {
+  margin-top: 14px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px 14px;
+  padding: 12px 14px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  border-radius: 16px;
+  background: rgba(15, 23, 42, 0.035);
+}
+.deck-select-box label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 800;
+}
+.deck-select-box .small {
+  flex-basis: 100%;
+}
+.card.display-only {
+  border-style: dashed;
+  opacity: 0.92;
+}
+.deck-mode-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: rgba(37, 99, 235, 0.12);
+  color: #1d4ed8;
+  font-weight: 900;
+}

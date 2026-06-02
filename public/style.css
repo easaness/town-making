@@ -1915,3 +1915,95 @@ button:disabled {
     justify-content: space-between;
   }
 }
+
+/* Clean dice/result display: remove leftover icon boxes and make the roll readable. */
+.roll-notice.clean-roll {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-items: center;
+  gap: 14px;
+  padding: 13px 15px;
+}
+.roll-notice-main strong {
+  display: block;
+  font-size: .86rem;
+  letter-spacing: .04em;
+  opacity: .82;
+}
+.roll-notice-main span {
+  display: block;
+  margin-top: 3px;
+  font-size: .9rem;
+  font-weight: 900;
+  color: inherit;
+  opacity: .76;
+}
+.roll-notice-result {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.roll-notice.clean-roll .roll-notice-values {
+  min-width: 0;
+  min-height: 0;
+  padding: 8px 14px;
+  border-radius: 14px;
+  background: #ffffff;
+  border: 2px solid rgba(67, 50, 35, .14);
+  box-shadow: 0 6px 14px rgba(67, 50, 35, .08);
+  color: #1f2937 !important;
+  font-size: 1.3rem !important;
+  line-height: 1;
+  font-weight: 1000 !important;
+}
+.roll-notice.clean-roll .roll-notice-dice,
+.roll-notice.clean-roll .dice-face,
+.roll-notice.clean-roll b {
+  display: none !important;
+}
+.hud-roll {
+  display: grid;
+  grid-template-columns: auto auto auto auto;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.hud-roll span {
+  padding: 3px 7px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, .12);
+}
+.hud-roll strong {
+  padding: 4px 9px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, .16);
+  letter-spacing: .02em;
+}
+.hud-roll small {
+  color: rgba(255, 245, 230, .76);
+  font-size: .76rem;
+  font-weight: 900;
+}
+.hud-roll.empty,
+.hud-roll.rolling {
+  grid-template-columns: auto auto;
+}
+@media (max-width: 720px) {
+  .roll-notice.clean-roll {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+  .roll-notice-result {
+    justify-content: flex-start;
+  }
+  .hud-roll {
+    grid-template-columns: 1fr auto;
+    justify-content: stretch;
+  }
+  .hud-roll small,
+  .hud-roll em {
+    grid-column: 1 / -1;
+  }
+}

@@ -1532,3 +1532,24 @@ button:disabled {
     max-height: 170px;
   }
 }
+
+
+/* Owned facilities: keep collapsible, but do not use nested scrolling. */
+.owned-card-details .owned-cards,
+#players .owned-card-details .owned-cards {
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 10px 10px;
+}
+
+.owned-card-details[open] {
+  overflow: visible;
+}
+
+@media (max-width: 800px) {
+  .owned-card-details .owned-cards,
+  #players .owned-card-details .owned-cards {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+}

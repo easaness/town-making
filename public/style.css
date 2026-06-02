@@ -5013,3 +5013,192 @@ input:focus,
   outline-color: rgba(212, 116, 51, .22) !important;
 }
 
+
+/* Color depth pass: strengthen the orange theme without touching facility card colors. */
+:root {
+  --bg: #f0d6b7 !important;
+  --panel: #fff9f0 !important;
+  --ink: #25160f !important;
+  --muted: #6e5a48 !important;
+  --line: #d8aa76 !important;
+  --accent: #df6f24 !important;
+  --accent-dark: #8f3a12 !important;
+}
+
+body {
+  color: var(--ink) !important;
+  background:
+    radial-gradient(circle at 14% 0%, rgba(255, 220, 164, .78), transparent 28rem),
+    radial-gradient(circle at 88% 12%, rgba(231, 124, 47, .20), transparent 30rem),
+    linear-gradient(180deg, #f3dec0 0%, #edcda6 48%, #e3bb8a 100%) !important;
+}
+
+.hero {
+  background:
+    linear-gradient(135deg, rgba(255, 247, 232, .98), rgba(255, 225, 185, .96)) !important;
+  border-color: #cf965d !important;
+  box-shadow: 0 18px 40px rgba(119, 64, 24, .13) !important;
+}
+
+.eyebrow {
+  color: #b6531a !important;
+  font-weight: 950 !important;
+}
+
+.hero h1,
+h1 {
+  color: #2d1b13 !important;
+  -webkit-text-fill-color: #2d1b13 !important;
+  text-shadow: none !important;
+  letter-spacing: -0.045em !important;
+  font-weight: 1000 !important;
+}
+
+.hero p {
+  color: #6b4228 !important;
+  font-weight: 750 !important;
+}
+
+.panel,
+.topbar,
+.players-panel,
+.logs-panel,
+.host-admin,
+.room-ops,
+.turn-action-card,
+.deck-select-box,
+.deck-choice-card,
+.choice-panel {
+  background: linear-gradient(180deg, #fffaf2, #fff2e2) !important;
+  border-color: #d6a06a !important;
+  box-shadow: 0 12px 28px rgba(95, 51, 18, .10) !important;
+}
+
+.panel h2,
+.turn-action-head h2,
+.deck-select-head strong,
+.turn-summary-head strong,
+.money-summary-title,
+#statusTitle {
+  color: #3a2115 !important;
+  -webkit-text-fill-color: #3a2115 !important;
+}
+
+.panel h2::before {
+  background: #dd6f24 !important;
+  box-shadow: none !important;
+}
+
+#statusText,
+#statusText span,
+.small,
+p,
+label {
+  color: #654b38 !important;
+}
+
+#statusText strong {
+  color: #2f1c12 !important;
+  font-weight: 950 !important;
+}
+
+.player,
+.card,
+.owned-card,
+.log,
+.stock-line,
+.market-trigger {
+  border-color: #d9ad78 !important;
+}
+
+.player {
+  background: #fffaf2 !important;
+  box-shadow: 0 8px 18px rgba(93, 50, 18, .08) !important;
+}
+
+.player.current,
+.me-player.current {
+  border-color: #dd6f24 !important;
+  outline: 3px solid rgba(221, 111, 36, .18) !important;
+}
+
+button:not(.secondary):not(.danger):not(.outline-danger) {
+  background: #dd6f24 !important;
+  color: #fffdf8 !important;
+  border: 1px solid #c45c1c !important;
+  box-shadow: none !important;
+}
+
+button:not(.secondary):not(.danger):not(.outline-danger):hover {
+  background: #c85f1d !important;
+}
+
+button.secondary,
+#turnActions button.secondary,
+.hud-actions button.secondary {
+  background: #fff3e4 !important;
+  color: #70360f !important;
+  border: 1px solid #d79b61 !important;
+  box-shadow: none !important;
+}
+
+.badge.room-badge {
+  background: #3b271b !important;
+  border-color: rgba(255,255,255,.12) !important;
+}
+
+.copy-code-btn {
+  background: #fff3e4 !important;
+  border-color: #d7a16c !important;
+  color: #3a2115 !important;
+}
+
+.turn-summary-panel,
+.recent-notice,
+.roll-notice,
+.roll-notice.mine,
+.roll-notice.opponent {
+  background: linear-gradient(180deg, #fff7eb, #ffe8cf) !important;
+  border-color: #d99d61 !important;
+  color: #3a2115 !important;
+}
+
+.money-summary-box {
+  background: #fff6e8 !important;
+  border-color: #d7a16c !important;
+}
+
+.sticky-hud {
+  background: rgba(255, 247, 235, .98) !important;
+  border-color: #d49a60 !important;
+  box-shadow: 0 -10px 26px rgba(83, 43, 14, .13) !important;
+}
+
+.hud-info strong {
+  color: #7a3511 !important;
+}
+
+.hud-info span,
+.hud-actions .hud-wait {
+  color: #60442f !important;
+}
+
+/* Keep card role colors distinct but slightly richer. */
+.card.blue,
+.owned-card.blue { background: #d9ecff !important; }
+.card.green,
+.owned-card.green { background: #dff7df !important; }
+.card.red,
+.owned-card.red { background: #ffe2df !important; }
+.card.purple,
+.owned-card.purple { background: #efe3ff !important; }
+
+/* Orange theme: remove remaining generic blue window chrome, without changing blue facility cards. */
+.room-ops,
+.room-confirm,
+.admin-status,
+.admin-confirm {
+  background: #fff3e4 !important;
+  border-color: #d49a60 !important;
+  color: #3a2115 !important;
+}

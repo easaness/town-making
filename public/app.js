@@ -733,8 +733,7 @@ function renderStatus() {
 
 function rollExpression(roll) {
   if (!roll?.dice?.length) return '-';
-  if (roll.dice.length === 1) return String(roll.total);
-  return `${roll.dice.join(' + ')} = ${roll.total}`;
+  return String(roll.total);
 }
 
 function rollDiceValuesText(roll) {

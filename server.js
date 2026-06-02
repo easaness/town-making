@@ -401,7 +401,7 @@ function resolveRoll(room, diceValues) {
     log(room, `${roller.name} は紫カードの対象を選択します。`);
   } else {
     room.pendingPurple = null;
-    room.phase = 'build';
+    enterBuildPhase(room);
   }
 }
 
@@ -416,9 +416,22 @@ function canUseBusinessCenter(room, player) {
   return room.players.some(p => p.id !== player.id && nonPurpleCardIds(p).length > 0);
 }
 
+function enterBuildPhase(room) {
+  room.phase = 'build';
+  const player = getCurrentPlayer(room);
+  if (!player) return;
+  if (player.coins === 0 && !room.buildSubsidyGiven) {
+    room.buildSubsidyGiven = true;
+    bankIncome(room, player, 1, '建設フェイズ補助');
+    const text = `${player.name} は建設フェイズ開始時に所持金0のため、銀行から1コインを得ました。`;
+    log(room, text);
+    specialEvent(room, 'effect-income', player, text, { amount: 1, reason: 'build-subsidy' });
+  }
+}
+
 function finishCurrentPurple(room) {
   if (!room.pendingPurple) {
-    room.phase = 'build';
+    enterBuildPhase(room);
     return;
   }
   room.pendingPurple.effects.shift();
@@ -427,7 +440,7 @@ function finishCurrentPurple(room) {
     room.phase = 'purple';
   } else {
     room.pendingPurple = null;
-    room.phase = 'build';
+    enterBuildPhase(room);
   }
 }
 
@@ -440,6 +453,7 @@ function advanceTurn(room) {
     room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
   }
   room.phase = 'roll';
+  room.buildSubsidyGiven = false;
   room.lastRoll = null;
   room.pendingRoll = null;
   room.pendingPurple = null;
@@ -503,6 +517,11 @@ function detachSocketFromCurrentRoom(socket) {
 }
 
 io.on('connection', (socket) => {
+  socket.on('leaveRoom', (_payload, cb) => {
+    detachSocketFromCurrentRoom(socket);
+    cb?.({ ok: true });
+  });
+
   socket.on('createRoom', ({ name }, cb) => {
     detachSocketFromCurrentRoom(socket);
     let code = roomCode();
@@ -521,6 +540,7 @@ io.on('connection', (socket) => {
       lastRoll: null,
       canReroll: true,
       pendingExtraTurn: false,
+      buildSubsidyGiven: false,
       pendingPurple: null,
       pendingRoll: null,
       rolling: null,
@@ -629,6 +649,7 @@ io.on('connection', (socket) => {
     room.phase = 'roll';
     room.currentPlayerIndex = 0;
     room.pendingExtraTurn = false;
+    room.buildSubsidyGiven = false;
     room.pendingPurple = null;
     room.pendingRoll = null;
     room.rolling = null;
@@ -849,6 +870,7 @@ io.on('connection', (socket) => {
     room.pendingRoll = null;
     room.pendingPurple = null;
     room.pendingExtraTurn = false;
+    room.buildSubsidyGiven = false;
     room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;
     room.phase = 'roll';
     room.canReroll = true;

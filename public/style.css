@@ -1660,24 +1660,165 @@ button:disabled {
 }
 
 .deck-select-box {
-  margin-top: 14px;
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px 14px;
-  padding: 12px 14px;
-  border: 1px solid rgba(148, 163, 184, 0.35);
-  border-radius: 16px;
-  background: rgba(15, 23, 42, 0.035);
+  margin-top: 18px;
+  display: grid;
+  gap: 14px;
+  padding: 18px;
+  border: 1px solid rgba(228, 123, 55, 0.22);
+  border-radius: 24px;
+  background:
+    radial-gradient(circle at top left, rgba(255, 231, 186, .85), transparent 18rem),
+    linear-gradient(135deg, rgba(255,255,255,.9), rgba(255,248,237,.9));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,.95), 0 12px 28px rgba(72, 52, 29, .06);
 }
-.deck-select-box label {
+.deck-select-head {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.deck-select-head strong {
+  display: block;
+  font-size: 1.08rem;
+  color: #1f2933;
+}
+.deck-select-head p {
+  margin-top: 3px;
+  font-size: .9rem;
+}
+.deck-select-kicker {
+  flex: 0 0 auto;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 800;
+  justify-content: center;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: .74rem;
+  letter-spacing: .08em;
+  font-weight: 1000;
 }
-.deck-select-box .small {
-  flex-basis: 100%;
+.deck-choice-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.deck-choice-card {
+  position: relative;
+  display: grid;
+  gap: 8px;
+  min-height: 182px;
+  padding: 16px;
+  border: 2px solid rgba(148, 163, 184, .28);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, .82);
+  cursor: pointer;
+  overflow: hidden;
+  transition: transform .16s ease, border-color .16s ease, box-shadow .16s ease, background .16s ease;
+}
+.deck-choice-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(228, 123, 55, .5);
+  box-shadow: 0 16px 28px rgba(72, 52, 29, .1);
+}
+.deck-choice-card input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.deck-choice-card::after {
+  content: '選択中';
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #111827;
+  color: #fff;
+  font-size: .72rem;
+  font-weight: 1000;
+  opacity: 0;
+  transform: translateY(-4px);
+  transition: opacity .16s ease, transform .16s ease;
+}
+.deck-choice-card:has(input:checked) {
+  border-color: var(--accent);
+  background: linear-gradient(135deg, #fff7ed, #fffdf8);
+  box-shadow: 0 18px 38px rgba(228, 123, 55, .18), inset 0 0 0 3px rgba(228, 123, 55, .12);
+}
+.deck-choice-card:has(input:checked)::after {
+  opacity: 1;
+  transform: translateY(0);
+}
+.deck-choice-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.deck-choice-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 48px;
+  height: 48px;
+  border-radius: 16px;
+  background: #fff7ed;
+  border: 1px solid #fed7aa;
+  font-size: 1.55rem;
+}
+.plus-choice .deck-choice-icon {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+}
+.deck-choice-badge {
+  padding: 5px 9px;
+  border-radius: 999px;
+  background: #f2f4f7;
+  color: #344054;
+  font-size: .74rem;
+  font-weight: 1000;
+}
+.deck-choice-badge.plus {
+  background: #dbeafe;
+  color: #1d4ed8;
+}
+.deck-choice-title {
+  font-size: 1.28rem;
+  font-weight: 1000;
+  color: #1f2933;
+}
+.deck-choice-desc {
+  color: #475467;
+  line-height: 1.45;
+  font-size: .92rem;
+}
+.deck-choice-list {
+  margin-top: auto;
+  padding: 9px 10px;
+  border-radius: 14px;
+  background: rgba(15, 23, 42, .045);
+  color: #667085;
+  font-size: .82rem;
+  line-height: 1.45;
+}
+.deck-mode-help {
+  padding: 12px 14px;
+  border-radius: 16px;
+  background: #111827;
+  color: #fff;
+  font-size: .92rem;
+  line-height: 1.5;
+  box-shadow: 0 10px 20px rgba(17, 24, 39, .12);
+}
+.deck-mode-help strong { color: #fde68a; }
+.deck-note {
+  color: #667085;
+  font-size: .84rem;
+  line-height: 1.55;
+}
+@media (max-width: 720px) {
+  .deck-choice-grid { grid-template-columns: 1fr; }
+  .deck-select-head { align-items: flex-start; }
 }
 .card.display-only {
   border-style: dashed;

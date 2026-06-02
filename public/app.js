@@ -352,6 +352,17 @@ function rerollDice() {
   startLocalRoll(count, 'rerollDice', () => emitWithMessage('rerollDice'));
 }
 
+function rollTunaDice() {
+  if (localRollingCount) return;
+  startLocalRoll(2, 'rollTunaDice', () => emitWithMessage('rollTunaDice'));
+}
+
+function currentTunaPending() {
+  const pending = state?.pendingTuna;
+  if (!pending || !Array.isArray(pending.queue)) return null;
+  return pending.queue[pending.currentIndex || 0] || null;
+}
+
 function startLocalRoll(count, key, send) {
   startRollingPreview(count);
   renderActions();
@@ -397,6 +408,23 @@ function showMessage(text) {
     setTimeout(() => { if (el.textContent === text) el.textContent = ''; }, 3500);
   });
 }
+
+
+function updateDeckModeHelp() {
+  const mode = document.querySelector('input[name="deckMode"]:checked')?.value || 'base';
+  const help = $('deckModeHelp');
+  if (!help) return;
+  if (mode === 'plus') {
+    help.innerHTML = '<strong>街コロ＋：</strong>基本カードに港・空港・漁船・出版社・税務署などを追加します。役所は常時有効ルールの表示だけです。';
+  } else {
+    help.innerHTML = '<strong>街コロ：</strong>基本カードのみ。通常プレイを壊さず、今まで通り遊べます。';
+  }
+}
+
+document.querySelectorAll('input[name="deckMode"]').forEach((input) => {
+  input.addEventListener('change', updateDeckModeHelp);
+});
+updateDeckModeHelp();
 
 $('createBtn').onclick = () => createFreshRoom();
 $('joinBtn').onclick = () => {
@@ -489,6 +517,10 @@ function phaseGuideText() {
   if (state.rolling) return `${state.rolling.playerName || 'プレイヤー'} がダイスを振っています。結果を待ってください。`;
   if (!mine) {
     if (state.phase === 'portChoice') return `${cp?.name || 'プレイヤー'} が港効果を使うか選んでいます。`;
+    if (state.phase === 'tunaRoll') {
+      const tuna = currentTunaPending();
+      return `${tuna?.playerName || 'プレイヤー'} がマグロ漁船の追加ダイスを振るのを待っています。`;
+    }
     if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
     if (state.phase === 'build') return `${cp?.name || 'プレイヤー'} が建設するか選んでいます。`;
     return `${cp?.name || 'プレイヤー'} の操作待ちです。`;
@@ -496,6 +528,10 @@ function phaseGuideText() {
   if (state.phase === 'roll') return 'ダイスを振ってください。駅が完成していれば2個も選べます。';
   if (state.phase === 'reroll') return '電波塔で振り直すか、この出目で進めるか選んでください。';
   if (state.phase === 'portChoice') return '港効果で出目に+2するか選んでください。';
+  if (state.phase === 'tunaRoll') {
+    const tuna = currentTunaPending();
+    return tuna?.playerId === myId ? 'マグロ漁船の追加ダイスを振ってください。' : `${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイス待ちです。`;
+  }
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
   if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
   return '';
@@ -606,7 +642,7 @@ function cardDescription(id, card) {
     tv: '自分のターンに相手1人を選び、最大5コインもらう。',
     business: '自分と相手の紫以外の施設を1件ずつ交換する。',
     sushi: '他人のターン。港が完成していれば、出した人から3コイン。モールで+1。',
-    flower: '誰のターンでも銀行から2コイン。',
+    flower: '誰のターンでも銀行から1コイン。',
     flowerShop: '自分のターン。花畑1件につき1コイン。',
     pizza: '他人のターン。出した人から1コイン。モールで+1。',
     burger: '他人のターン。出した人から1コイン。モールで+1。',
@@ -680,7 +716,7 @@ function renderStatus() {
       ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
       : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
   }
-  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
+  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${state.lastRoll.dice.join('+')}=${state.lastRoll.total}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
@@ -829,7 +865,7 @@ function renderHostAdmin() {
     return;
   }
   const cp = currentPlayer();
-  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', purple: '紫カード選択', build: '建設' }[state.phase] || state.phase;
+  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', tunaRoll: 'マグロ漁船', purple: '紫カード選択', build: '建設' }[state.phase] || state.phase;
   body.innerHTML = `
     <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
     <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
@@ -883,6 +919,11 @@ function stickyHudActionHtml() {
   if (state.phase === 'portChoice') {
     return `<button onclick="emitWithMessage('usePortRoll')">港+2</button><button class="secondary" onclick="emitWithMessage('acceptPortRoll')">そのまま</button>`;
   }
+  if (state.phase === 'tunaRoll') {
+    const tuna = currentTunaPending();
+    if (tuna?.playerId === myId) return `<button onclick="rollTunaDice()">追加ダイスを振る</button>`;
+    return `<span class="hud-wait">${escapeHtml(tuna?.playerName || '相手')} のマグロ漁船</span>`;
+  }
   if (state.phase === 'purple') {
     return '<span class="hud-wait">紫カードを選択中</span>';
   }
@@ -909,6 +950,8 @@ function renderStickyHud() {
         ? '振り直し'
         : state.phase === 'portChoice'
           ? '港'
+          : state.phase === 'tunaRoll'
+          ? 'マグロ漁船'
           : state.phase === 'purple'
           ? '紫カード'
           : state.phase === 'build'
@@ -1049,6 +1092,29 @@ function renderActions() {
       <div class="actions">
         <button onclick="emitWithMessage('usePortRoll')">+2して進める</button>
         <button class="secondary" onclick="emitWithMessage('acceptPortRoll')">そのまま進める</button>
+      </div>${hostControlHtml()}`;
+    return;
+  }
+  if (state.phase === 'tunaRoll') {
+    const tuna = currentTunaPending();
+    if (!me()) {
+      el.innerHTML = `<p>観戦中です。${escapeHtml(tuna?.playerName || 'プレイヤー')} がマグロ漁船の追加ダイスを振るのを待っています。</p>`;
+      return;
+    }
+    if (tuna?.playerId !== myId) {
+      el.innerHTML = `<p>${escapeHtml(tuna?.playerName || 'プレイヤー')} がマグロ漁船の追加ダイスを振るのを待っています。</p>${hostControlHtml()}`;
+      return;
+    }
+    if (localRollingCount) {
+      const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
+      el.innerHTML = `<div class="dice-stage rolling-live"><div class="dice-label">マグロ漁船</div><div class="dice-row rolling-row">${previewDice}</div></div>${hostControlHtml()}`;
+      return;
+    }
+    el.innerHTML = `
+      <div class="choice-panel">
+        <h3>マグロ漁船：追加ダイス</h3>
+        <p>${escapeHtml(tuna?.playerName || 'あなた')} のマグロ漁船 ${tuna?.count || 1} 隻が発動しました。2個のダイスを振ってください。</p>
+        <div class="actions"><button onclick="rollTunaDice()">追加ダイスを振る</button></div>
       </div>${hostControlHtml()}`;
     return;
   }

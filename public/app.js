@@ -603,7 +603,7 @@ function diceTray(roll, label = '出目') {
   return `<div class="dice-stage playable-roll${fresh}">
     <div class="dice-label">${label}</div>
     <div class="dice-row result-dice-row">${faces}</div>
-    <div class="dice-total"><span>出目</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
+    <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
   </div>`;
 }
 
@@ -719,7 +719,7 @@ function renderStatus() {
   }
   const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
-  const rollText = state.lastRoll ? ` / 出目 ${rollExpression(state.lastRoll)}` : '';
+  const rollText = state.lastRoll ? ` / 合計 ${rollExpression(state.lastRoll)}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
   const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
   const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
@@ -764,7 +764,7 @@ function renderRollNotice() {
   }
   const mine = roll.playerId === myId;
   const name = rollOwnerName(roll);
-  const label = '現在の出目';
+  const label = '今回の出目';
   const fresh = diceJustChanged ? ' fresh' : '';
   const adjusted = roll.adjustedTotal ? `<span class="roll-adjusted">港なら ${roll.adjustedTotal}</span>` : '';
   el.className = `roll-notice clean-roll ${mine ? 'mine' : 'opponent'}${fresh}`;
@@ -776,7 +776,7 @@ function renderRollNotice() {
     </div>
     <div class="roll-notice-result">
       <div class="roll-notice-dice">${faces}</div>
-      <div class="roll-notice-total"><span>出目</span><b>${escapeHtml(rollExpression(roll))}</b>${adjusted}</div>
+      <div class="roll-notice-total"><span>合計</span><b>${escapeHtml(rollExpression(roll))}</b>${adjusted}</div>
     </div>`;
 }
 
@@ -847,7 +847,7 @@ function renderRecentNotice() {
 
   const roll = state.lastRoll || state.pendingRoll;
   const rollLine = roll?.dice?.length
-    ? `<div class="turn-summary-roll"><span>出目</span><strong>${escapeHtml(rollExpression(roll))}</strong></div>`
+    ? `<div class="turn-summary-roll"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong></div>`
     : '';
 
   if (!items.length && !hasRoll) {
@@ -983,14 +983,14 @@ function stickyHudRollHtml() {
   const roll = state?.pendingRoll || state?.lastRoll;
   if (state?.rolling) {
     const who = state.rolling.playerName ? `${escapeHtml(state.rolling.playerName)}さん` : 'プレイヤー';
-    return `<div class="hud-roll rolling"><span>現在の出目</span><strong>${who}が振っています...</strong></div>`;
+    return `<div class="hud-roll rolling"><span>今回の出目</span><strong class="hud-roll-wait">${who}が振っています…</strong></div>`;
   }
   if (!roll?.dice?.length) {
     return '';
   }
   const adjusted = roll.adjustedTotal ? `<em>港なら ${roll.adjustedTotal}</em>` : '';
   const who = escapeHtml(rollOwnerName(roll));
-  return `<div class="hud-roll"><span>現在の出目</span><strong>${escapeHtml(rollExpression(roll))}</strong><small>${who}さん</small>${adjusted}</div>`;
+  return `<div class="hud-roll"><span>今回の出目</span><strong class="hud-roll-value">${escapeHtml(rollExpression(roll))}</strong><small>${who}さん</small>${adjusted}</div>`;
 }
 
 function stickyHudActionHtml() {

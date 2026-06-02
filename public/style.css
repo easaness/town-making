@@ -4918,3 +4918,98 @@ button.secondary,
   border: 0 !important;
   box-shadow: none !important;
 }
+
+/* Theme repair: make the app surfaces orange-based while preserving card color identities. */
+body {
+  background:
+    radial-gradient(circle at 12% 0%, rgba(255, 242, 214, .95), transparent 30rem),
+    radial-gradient(circle at 88% 18%, rgba(255, 224, 190, .62), transparent 26rem),
+    linear-gradient(180deg, #f7ead7 0%, #f1ddc2 58%, #ead2b3 100%) !important;
+}
+
+.hero,
+.panel,
+.topbar,
+.players-panel,
+.logs-panel,
+.host-admin,
+.room-ops,
+.turn-action-card,
+.deck-select-box,
+.deck-choice-card,
+.choice-panel,
+.admin-status,
+.admin-confirm,
+.room-confirm,
+.result-box,
+.market-trigger,
+.stock-line {
+  border-color: #e4c39b !important;
+}
+
+.hero,
+.panel,
+.turn-action-card,
+.deck-select-box {
+  background:
+    linear-gradient(180deg, rgba(255, 253, 248, .98), rgba(255, 246, 233, .96)) !important;
+}
+
+/* Room operation and admin panels should not use blue as section color. */
+.room-ops,
+.room-confirm {
+  background: linear-gradient(180deg, #fff8ee, #fff0dd) !important;
+  border-color: #e8bf8e !important;
+}
+.host-admin,
+.admin-confirm {
+  background: linear-gradient(180deg, #fff7f0, #fff0e4) !important;
+  border-color: #e6b98a !important;
+}
+
+/* Notices: keep success green and danger red, but remove generic blue section treatment. */
+.roll-notice,
+.roll-notice.mine,
+.roll-notice.opponent,
+.recent-notice,
+.recent-notice.market {
+  background: linear-gradient(180deg, #fff8ed, #fff1df) !important;
+  border-color: #e8bf8e !important;
+  color: #5c3518 !important;
+}
+.roll-notice span,
+.roll-notice.mine span,
+.roll-notice.opponent span,
+.recent-notice.market span {
+  color: #9a4f18 !important;
+}
+
+/* Deck selection: keep plus as a deck option, but not blue-themed. */
+.plus-choice .deck-choice-icon,
+.deck-choice-badge.plus {
+  background: #fff1df !important;
+  border-color: #f1c48f !important;
+  color: #9a4f18 !important;
+}
+
+/* Preserve actual facility card colors; only section/window chrome is orange. */
+.card.blue,
+.owned-card.blue {
+  background: var(--blue) !important;
+}
+.card.blue::before {
+  background: linear-gradient(90deg, #7cb7ec, #4a95dd) !important;
+}
+.owned-card.blue {
+  border-left-color: #71addf !important;
+}
+
+/* Selection and focus should use orange rather than blue. */
+.deck-choice-card:hover,
+.deck-choice-card:has(input:checked),
+input:focus,
+.choice-panel select:focus {
+  border-color: #d47433 !important;
+  outline-color: rgba(212, 116, 51, .22) !important;
+}
+

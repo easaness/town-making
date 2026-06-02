@@ -2212,3 +2212,103 @@ button:disabled {
     height: 58px;
   }
 }
+
+/* User requested: remove the extra current-roll green framed panel and remove boxed styling from total number. */
+#rollNotice,
+.roll-notice.clean-roll {
+  display: none !important;
+}
+
+.sticky-hud {
+  grid-template-columns: minmax(120px, auto) auto !important;
+}
+
+.hud-roll {
+  display: none !important;
+}
+
+.dice-stage.playable-roll .dice-total {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  padding: 4px 0 !important;
+  color: #7c2d12 !important;
+}
+
+.dice-stage.playable-roll .dice-total strong,
+#turnActions .dice-total strong,
+.dice-total strong {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  border-radius: 0 !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+}
+
+.dice-stage.playable-roll .dice-total span,
+.roll-notice-total span {
+  color: #9a3412 !important;
+}
+
+/* Dice result layout fix: keep the result dice side-by-side in the same visual position as rolling dice. */
+.roll-notice.clean-roll .roll-notice-result {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: flex-end !important;
+  gap: 12px !important;
+  flex-wrap: nowrap !important;
+}
+.roll-notice.clean-roll .roll-notice-dice {
+  display: flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  gap: 10px !important;
+  min-width: 96px !important;
+}
+.roll-notice.clean-roll .dice-face {
+  display: grid !important;
+  width: 42px !important;
+  height: 42px !important;
+  min-width: 42px !important;
+  border-radius: 12px !important;
+  padding: 6px !important;
+  gap: 3px !important;
+}
+.roll-notice.clean-roll .dice-face i {
+  display: block !important;
+  width: 5px !important;
+  height: 5px !important;
+}
+.roll-notice.clean-roll .roll-notice-total {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  gap: 6px !important;
+  white-space: nowrap !important;
+  font-weight: 900 !important;
+}
+.roll-notice.clean-roll .roll-notice-total b {
+  display: inline !important;
+  min-width: 0 !important;
+  height: auto !important;
+  padding: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  font-size: 1.2rem !important;
+  line-height: 1 !important;
+}
+@media (max-width: 620px) {
+  .roll-notice.clean-roll {
+    grid-template-columns: 1fr !important;
+    gap: 8px !important;
+  }
+  .roll-notice.clean-roll .roll-notice-result {
+    justify-content: center !important;
+  }
+}

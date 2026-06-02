@@ -725,7 +725,8 @@ function renderStatus() {
   const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
   const deckText = state.deckMode === 'plus' ? ' / デッキ 街コロ＋' : ' / デッキ 街コロ';
   $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}${deckText}`)}</span>`;
-  renderRollNotice();
+  const rollNoticeEl = $('rollNotice');
+  if (rollNoticeEl) rollNoticeEl.classList.add('hidden');
   renderRecentNotice();
 }
 
@@ -999,7 +1000,6 @@ function renderStickyHud() {
       <strong>あなた ${mine.coins}🪙</strong>
       <span>${myTurnNow ? 'あなたの番' : `${escapeHtml(cp?.name || '相手')} の番`} / ${phaseLabel}</span>
     </div>
-    ${stickyHudRollHtml()}
     <div class="hud-actions">${stickyHudActionHtml()}</div>
   `;
 }

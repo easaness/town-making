@@ -814,6 +814,27 @@ function summarizeTurnEvents(events) {
   return items;
 }
 
+
+function renderTurnMoneySummary() {
+  if (!state?.turnCoinStart || !state?.turnCoinEnd || !Array.isArray(state.players)) return '';
+  const rows = state.players.map((p) => {
+    const before = Number(state.turnCoinStart[p.id] ?? p.coins ?? 0);
+    const after = Number(state.turnCoinEnd[p.id] ?? p.coins ?? 0);
+    const diff = after - before;
+    const cls = diff > 0 ? 'plus' : diff < 0 ? 'minus' : 'zero';
+    const sign = diff > 0 ? '+' : '';
+    return `<div class="money-summary-row ${cls}">
+      <span class="money-summary-name">${escapeHtml(p.name)}</span>
+      <span class="money-summary-flow">${before} → ${after}</span>
+      <strong class="money-summary-diff">${sign}${diff}</strong>
+    </div>`;
+  }).join('');
+  return `<div class="money-summary-box">
+    <div class="money-summary-title">最終収支</div>
+    <div class="money-summary-rows">${rows}</div>
+  </div>`;
+}
+
 function renderRecentNotice() {
   const el = $('recentNotice');
   if (!el || !state || state.status === 'waiting') return;
@@ -838,6 +859,7 @@ function renderRecentNotice() {
   const body = items.length
     ? `<ul class="turn-summary-list">${items.map(item => `<li class="${item.kind}"><span class="turn-summary-icon">${item.icon}</span><span>${escapeHtml(item.label)}</span></li>`).join('')}</ul>`
     : `<p class="turn-summary-empty">このターンの施設効果はまだ発生していません。</p>`;
+  const moneySummary = renderTurnMoneySummary();
 
   el.className = 'recent-notice turn-summary-panel';
   el.innerHTML = `
@@ -846,7 +868,8 @@ function renderRecentNotice() {
       <span>${escapeHtml(state.currentPlayer?.name || '')}</span>
     </div>
     ${rollLine}
-    ${body}`;
+    ${body}
+    ${moneySummary}`;
 }
 
 

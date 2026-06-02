@@ -2663,3 +2663,95 @@ button:disabled {
     justify-content: center !important;
   }
 }
+
+/* Clean up: remove the stray blue rounded bar under the turn status. */
+#statusText span {
+  display: inline !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+}
+#gameMsg:empty,
+#recentNotice:empty,
+#rollNotice:empty {
+  display: none !important;
+}
+.admin-status {
+  background: transparent !important;
+  border: 0 !important;
+  box-shadow: none !important;
+  border-radius: 0 !important;
+  padding: 0 !important;
+}
+
+.money-summary-box {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid rgba(148, 163, 184, 0.45);
+}
+
+.money-summary-title {
+  font-size: 12px;
+  font-weight: 900;
+  color: #475569;
+  letter-spacing: 0.04em;
+  margin-bottom: 8px;
+}
+
+.money-summary-rows {
+  display: grid;
+  gap: 6px;
+}
+
+.money-summary-row {
+  display: grid;
+  grid-template-columns: minmax(80px, 1fr) auto auto;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: #fff;
+  color: #0f172a;
+  box-shadow: inset 0 0 0 1px rgba(226, 232, 240, 0.8);
+}
+
+.money-summary-name {
+  font-weight: 800;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.money-summary-flow {
+  color: #64748b;
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-summary-diff {
+  min-width: 42px;
+  text-align: right;
+  font-size: 15px;
+  font-variant-numeric: tabular-nums;
+}
+
+.money-summary-row.plus .money-summary-diff { color: #16a34a; }
+.money-summary-row.minus .money-summary-diff { color: #dc2626; }
+.money-summary-row.zero .money-summary-diff { color: #64748b; }
+
+@media (max-width: 560px) {
+  .money-summary-row {
+    grid-template-columns: 1fr auto;
+  }
+  .money-summary-flow {
+    grid-column: 1 / -1;
+    order: 3;
+    font-size: 12px;
+  }
+}

@@ -103,6 +103,8 @@ function normalizeLoadedRoom(room) {
   room.coinEvents = Array.isArray(room.coinEvents) ? room.coinEvents : [];
   room.specialEvents = Array.isArray(room.specialEvents) ? room.specialEvents : [];
   room.turnSummary = Array.isArray(room.turnSummary) ? room.turnSummary : [];
+  room.turnCoinStart = room.turnCoinStart || null;
+  room.turnCoinEnd = room.turnCoinEnd || null;
   room.deck = Array.isArray(room.deck) ? room.deck : [];
   room.market = room.market || {};
   room.eventSeq = Number(room.eventSeq || 0);
@@ -230,7 +232,10 @@ function resetRoomToWaiting(room) {
   room.coinEvents = [];
   room.specialEvents = [];
   room.turnSummary = [];
+  room.turnCoinStart = null;
+  room.turnCoinEnd = null;
 }
+
 
 function publicRoom(room) {
   return {
@@ -257,6 +262,8 @@ function publicRoom(room) {
     coinEvents: (room.coinEvents || []).slice(-30),
     specialEvents: (room.specialEvents || []).slice(-20),
     turnSummary: (room.turnSummary || []).slice(-30),
+    turnCoinStart: room.turnCoinStart || null,
+    turnCoinEnd: room.turnCoinEnd || null,
     cards: getCardDefs(room),
     landmarks: getLandmarkDefs(room, true),
     lastUpdatedAt: room.lastUpdatedAt || Date.now()
@@ -298,6 +305,21 @@ function specialEvent(room, type, player, label, extra = {}) {
     room.turnSummary.push(ev);
     room.turnSummary = room.turnSummary.slice(-30);
   }
+}
+
+
+function snapshotCoins(room) {
+  return Object.fromEntries((room.players || []).map(p => [p.id, Number(p.coins || 0)]));
+}
+
+function beginTurnMoneySummary(room) {
+  room.turnCoinStart = snapshotCoins(room);
+  room.turnCoinEnd = null;
+}
+
+function finalizeTurnMoneySummary(room) {
+  if (!room.turnCoinStart) room.turnCoinStart = snapshotCoins(room);
+  room.turnCoinEnd = snapshotCoins(room);
 }
 
 function coinEvent(room, player, amount, type, label) {
@@ -386,6 +408,7 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
   const rawTotal = diceValues.reduce((a, b) => a + b, 0);
   const total = overrideTotal || rawTotal;
   room.turnSummary = [];
+  beginTurnMoneySummary(room);
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
   room.lastRoll = { dice: diceValues, total, rawTotal, playerId: roller.id, playerName: roller.name };
@@ -573,6 +596,7 @@ function enterBuildPhase(room) {
     log(room, text);
     specialEvent(room, 'effect-income', player, text, { amount: 1, reason: 'build-subsidy' });
   }
+  finalizeTurnMoneySummary(room);
 }
 
 function finishCurrentPurple(room) {
@@ -602,6 +626,9 @@ function advanceTurn(room) {
   room.buildSubsidyGiven = false;
   room.lastRoll = null;
   room.pendingRoll = null;
+  room.turnCoinStart = null;
+  room.turnCoinEnd = null;
+  room.turnSummary = [];
   room.pendingTuna = null;
   room.pendingPurple = null;
   room.rolling = null;

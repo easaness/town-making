@@ -2755,3 +2755,76 @@ button:disabled {
     font-size: 12px;
   }
 }
+
+
+/* Dice total final visual tuning: make the result feel like a clean score label, not a heavy badge. */
+.roll-notice-total,
+.dice-stage.playable-roll .dice-total,
+#turnActions .dice-stage.playable-roll .dice-total {
+  display: inline-flex !important;
+  align-items: baseline !important;
+  justify-content: center !important;
+  gap: 8px !important;
+  padding: 6px 12px !important;
+  border-radius: 999px !important;
+  background: rgba(255, 247, 237, .92) !important;
+  border: 1px solid rgba(234, 179, 8, .35) !important;
+  box-shadow: none !important;
+  color: #78350f !important;
+  white-space: nowrap !important;
+}
+.roll-notice-total span,
+.dice-stage.playable-roll .dice-total span,
+#turnActions .dice-stage.playable-roll .dice-total span {
+  color: #92400e !important;
+  font-size: .82rem !important;
+  font-weight: 900 !important;
+  letter-spacing: .02em !important;
+}
+.roll-notice-total b,
+.roll-notice-total strong,
+.dice-stage.playable-roll .dice-total strong,
+#turnActions .dice-stage.playable-roll .dice-total strong {
+  display: inline !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: 0 !important;
+  border-radius: 0 !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.32rem !important;
+  font-weight: 1000 !important;
+  line-height: 1 !important;
+  font-variant-numeric: tabular-nums !important;
+}
+.roll-notice-total .deck-mode-chip,
+.dice-stage.playable-roll .dice-total .deck-mode-chip {
+  margin-left: 4px !important;
+  border-radius: 999px !important;
+  background: #ecfccb !important;
+  border: 1px solid #bef264 !important;
+  color: #3f6212 !important;
+  font-size: .75rem !important;
+  font-weight: 900 !important;
+  padding: 3px 7px !important;
+}
+.turn-summary-roll {
+  background: rgba(255, 247, 237, .92) !important;
+  border: 1px solid rgba(234, 179, 8, .32) !important;
+  border-radius: 999px !important;
+  padding: 6px 12px !important;
+  box-shadow: none !important;
+}
+.turn-summary-roll span {
+  color: #92400e !important;
+  font-size: .82rem !important;
+}
+.turn-summary-roll strong {
+  color: #111827 !important;
+  -webkit-text-fill-color: #111827 !important;
+  font-size: 1.25rem !important;
+}

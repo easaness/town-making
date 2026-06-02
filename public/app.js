@@ -603,7 +603,7 @@ function diceTray(roll, label = '出目') {
   return `<div class="dice-stage playable-roll${fresh}">
     <div class="dice-label">${label}</div>
     <div class="dice-row result-dice-row">${faces}</div>
-    <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
+    <div class="dice-total"><span>出目</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
   </div>`;
 }
 
@@ -776,7 +776,7 @@ function renderRollNotice() {
     </div>
     <div class="roll-notice-result">
       <div class="roll-notice-dice">${faces}</div>
-      <div class="roll-notice-total"><span>合計</span><b>${escapeHtml(rollExpression(roll))}</b>${adjusted}</div>
+      <div class="roll-notice-total"><span>出目</span><b>${escapeHtml(rollExpression(roll))}</b>${adjusted}</div>
     </div>`;
 }
 

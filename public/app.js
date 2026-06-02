@@ -933,10 +933,10 @@ function renderPlayers() {
       <h3><span>${escapeHtml(p.name)} ${p.connected ? '' : '（切断）'}</span><span class="coins">${p.coins}🪙</span></h3>
       <div class="small">${idx + 1}番手</div>
       <div class="tags">${landmarks}</div>
-      <details class="owned-card-details">
-        <summary>建築済み施設 <span>${Object.values(p.cards || {}).reduce((a, b) => a + b, 0)}枚</span></summary>
+      <div class="owned-cards-open">
+        <div class="owned-cards-title">建築済み施設 <span>${Object.values(p.cards || {}).reduce((a, b) => a + b, 0)}枚</span></div>
         <div class="owned-cards">${builtCards}</div>
-      </details>
+      </div>
     </div>`;
   }).join('');
 }
@@ -989,7 +989,8 @@ function submitBusiness() {
 function renderActions() {
   const el = $('turnActions');
   if (state.status === 'waiting') {
-    el.innerHTML = `<p>${escapeHtml(phaseGuideText())}</p><div class="actions"><button class="secondary" onclick="copyInviteLink()">招待リンクをコピー</button></div>`;
+    const startButton = state.hostId === myId ? '<button onclick="emitWithMessage(\'startGame\')">ゲーム開始</button>' : '';
+    el.innerHTML = `<p>${escapeHtml(phaseGuideText())}</p><div class="actions"><button class="secondary" onclick="copyInviteLink()">招待リンクをコピー</button>${startButton}</div>`;
     return;
   }
   if (state.status === 'finished') {

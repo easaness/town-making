@@ -1553,3 +1553,102 @@ button:disabled {
     overflow: visible !important;
   }
 }
+
+
+/* Waiting room action placement: invite and start live side by side. */
+#turnActions .actions {
+  align-items: center;
+}
+
+@media (max-width: 640px) {
+  #turnActions .actions button {
+    flex: 1 1 150px;
+  }
+}
+
+
+/* Owned facilities: always visible in the 4-column player layout. */
+.owned-cards-open {
+  margin-top: 12px;
+}
+
+.owned-cards-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+  color: #5c4330;
+  font-size: .86rem;
+  font-weight: 1000;
+}
+
+.owned-cards-title span {
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: #fff3d8;
+  border: 1px solid #efd3a1;
+  color: #9a5a09;
+  font-size: .78rem;
+}
+
+.owned-cards-open .owned-cards {
+  display: grid;
+  gap: 7px;
+  max-height: none !important;
+  overflow: visible !important;
+  padding: 0 !important;
+}
+
+.owned-cards-open .owned-card {
+  padding: 8px 9px;
+  border-radius: 14px;
+  border-left-width: 6px;
+}
+
+.owned-cards-open .owned-card-head strong {
+  font-size: .88rem;
+}
+
+.owned-cards-open .owned-trigger-row {
+  grid-template-columns: auto 1fr;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.owned-cards-open .owned-trigger-row > span {
+  font-size: .7rem;
+}
+
+.owned-cards-open .trigger-badges {
+  gap: 4px;
+}
+
+.owned-cards-open .trigger-badges span {
+  min-width: 25px;
+  height: 25px;
+  padding: 0 6px;
+  border-radius: 9px;
+  border-width: 1px;
+  font-size: .88rem;
+}
+
+.owned-cards-open .owned-card-effect {
+  margin-top: 4px;
+  font-size: .76rem;
+  line-height: 1.32;
+}
+
+.owned-cards-open .card-kind-label {
+  font-size: .68rem;
+}
+
+.owned-cards-open .triggered-label {
+  padding: 3px 7px;
+  font-size: .7rem;
+}
+
+/* Hide obsolete details styling if a cached browser sees older markup during hot reload. */
+.owned-card-details {
+  margin-top: 12px;
+}

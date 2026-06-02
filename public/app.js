@@ -602,8 +602,10 @@ function diceTray(roll, label = '出目') {
   const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
   return `<div class="dice-stage playable-roll${fresh}">
     <div class="dice-label">${label}</div>
-    <div class="dice-row result-dice-row">${faces}</div>
-    <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
+    <div class="dice-result-line">
+      <div class="dice-total"><span>合計</span><strong>${escapeHtml(rollExpression(roll))}</strong>${adjusted}</div>
+      <div class="dice-row result-dice-row">${faces}</div>
+    </div>
   </div>`;
 }
 

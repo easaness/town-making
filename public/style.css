@@ -2755,3 +2755,46 @@ button:disabled {
     font-size: 12px;
   }
 }
+
+/* Money summary color coding: only rows inside the 最終収支 box change color by net change. */
+.money-summary-box {
+  background: #fffaf3 !important;
+  border: 1px solid rgba(217, 119, 6, 0.28) !important;
+}
+.money-summary-row {
+  box-shadow: none !important;
+  border: 1px solid transparent !important;
+}
+.money-summary-row.plus {
+  background: #ecfdf5 !important;
+  border-color: rgba(34, 197, 94, 0.34) !important;
+}
+.money-summary-row.minus {
+  background: #fef2f2 !important;
+  border-color: rgba(239, 68, 68, 0.34) !important;
+}
+.money-summary-row.zero {
+  background: #f8fafc !important;
+  border-color: rgba(148, 163, 184, 0.28) !important;
+}
+.money-summary-row.plus .money-summary-name,
+.money-summary-row.plus .money-summary-flow {
+  color: #14532d !important;
+}
+.money-summary-row.minus .money-summary-name,
+.money-summary-row.minus .money-summary-flow {
+  color: #7f1d1d !important;
+}
+.money-summary-row.zero .money-summary-name,
+.money-summary-row.zero .money-summary-flow {
+  color: #475569 !important;
+}
+.money-summary-row.plus .money-summary-diff {
+  color: #15803d !important;
+}
+.money-summary-row.minus .money-summary-diff {
+  color: #dc2626 !important;
+}
+.money-summary-row.zero .money-summary-diff {
+  color: #64748b !important;
+}

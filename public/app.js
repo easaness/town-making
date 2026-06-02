@@ -533,7 +533,7 @@ function phaseGuideText() {
     return state.pendingTuna?.rollerId === myId ? `${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振ってください。` : `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} のマグロ漁船追加ダイス待ちです。`;
   }
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
-  if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
+  if (state.phase === 'build') return '施設を1つ建設するか、建設せずに終了してください。';
   return '';
 }
 
@@ -1027,7 +1027,7 @@ function stickyHudActionHtml() {
     return `<button onclick="emitWithMessage('acceptRoll')">この出目で進める</button><button class="secondary" onclick="rerollDice()">振り直す</button>`;
   }
   if (state.phase === 'build') {
-    return `<button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>`;
+    return `<button class="secondary" onclick="emitWithMessage('skipBuild')">建設せずに終了</button>`;
   }
   if (state.phase === 'portChoice') {
     return `<button onclick="emitWithMessage('usePortRoll')">港+2</button><button class="secondary" onclick="emitWithMessage('acceptPortRoll')">そのまま</button>`;
@@ -1309,7 +1309,7 @@ function renderActions() {
     ${dice}
     <p>1件だけ建設するか、建設せずに終了できます。</p>
     <div class="actions">
-      <button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>
+      <button class="secondary" onclick="emitWithMessage('skipBuild')">建設せずに終了</button>
     </div>${hostControlHtml()}`;
 }
 

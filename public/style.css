@@ -2798,3 +2798,196 @@ button:disabled {
 .money-summary-row.zero .money-summary-diff {
   color: #64748b !important;
 }
+
+
+/* Tuna boat extra dice result: shown like dice, but clearly marked as non-triggering extra dice. */
+.turn-summary-tuna-roll {
+  margin: 10px 0;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(255, 247, 237, .88);
+  border: 1px solid rgba(217, 119, 6, .24);
+}
+.turn-summary-tuna-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+  color: #7c2d12;
+  font-weight: 900;
+}
+.turn-summary-tuna-roll .dice-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.turn-summary-tuna-roll .dice-face {
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+}
+.turn-summary-tuna-roll p {
+  margin: 0;
+  color: #78350f;
+  font-size: .86rem;
+  font-weight: 700;
+}
+
+/* Dice statistics shown after the game ends. Scoped to result area only. */
+.dice-stats-box {
+  margin: 16px 0;
+  padding: 16px;
+  border: 1px solid rgba(180, 116, 47, .28);
+  border-radius: 18px;
+  background: #fffaf3;
+}
+.dice-stats-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.dice-stats-head h3 {
+  margin: 0;
+  color: #3f2d1d;
+}
+.dice-stats-head span {
+  font-weight: 900;
+  color: #8a4b1f;
+  background: #ffedd5;
+  border: 1px solid #fed7aa;
+  border-radius: 999px;
+  padding: 5px 10px;
+  white-space: nowrap;
+}
+.dice-stats-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 14px;
+}
+.dice-stats-summary.compact {
+  grid-template-columns: minmax(0, 1fr);
+}
+.dice-stats-summary div {
+  background: #ffffff;
+  border: 1px solid rgba(180, 116, 47, .18);
+  border-radius: 14px;
+  padding: 10px;
+}
+.dice-stats-summary span {
+  display: block;
+  color: #7a6653;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.dice-stats-summary strong {
+  display: block;
+  margin-top: 3px;
+  color: #2f2118;
+  font-size: 1.05rem;
+}
+.dice-stats-grid {
+  display: grid;
+  grid-template-columns: 1.4fr .9fr;
+  gap: 14px;
+}
+.dice-stats-grid section,
+.dice-stats-tuna {
+  background: #ffffff;
+  border: 1px solid rgba(180, 116, 47, .16);
+  border-radius: 16px;
+  padding: 12px;
+}
+.dice-stats-grid h4,
+.dice-stats-tuna h4 {
+  margin: 0 0 10px;
+  color: #4b3525;
+}
+.dice-stats-tuna {
+  margin-top: 14px;
+}
+.dice-stats-tuna p {
+  margin: 0 0 10px;
+  color: #6f5b49;
+  font-size: .88rem;
+}
+.dice-stat-list {
+  display: grid;
+  gap: 7px;
+}
+.dice-stat-row {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr) 42px;
+  align-items: center;
+  gap: 8px;
+  color: #665342;
+  font-weight: 800;
+}
+.dice-stat-value {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 9px;
+  background: #f8f1e8;
+  color: #4b3525;
+}
+.dice-stat-bar {
+  height: 9px;
+  border-radius: 999px;
+  background: #f1e5d8;
+  overflow: hidden;
+}
+.dice-stat-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #d97706;
+  opacity: .25;
+}
+.dice-stat-row.has-count .dice-stat-bar i {
+  opacity: .9;
+}
+.dice-stat-row strong {
+  text-align: right;
+  color: #3f2d1d;
+}
+.dice-stat-player {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  border: 1px solid #f0dfcb;
+  border-radius: 12px;
+  padding: 8px 10px;
+  background: #fffaf3;
+}
+.dice-stat-player span {
+  color: #4b3525;
+  font-weight: 900;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dice-stat-player strong {
+  color: #8a4b1f;
+  white-space: nowrap;
+}
+@media (max-width: 720px) {
+  .dice-stats-head,
+  .dice-stats-grid {
+    grid-template-columns: 1fr;
+  }
+  .dice-stats-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+  .dice-stats-summary {
+    grid-template-columns: 1fr;
+  }
+}

@@ -81,6 +81,82 @@ function initialLandmarks(deckMode = 'base') {
   return Object.fromEntries(Object.keys(getLandmarkDefs(deckMode, false)).map(id => [id, false]));
 }
 
+function createDiceStats() {
+  const normalCounts = {};
+  for (let i = 1; i <= 12; i++) normalCounts[i] = 0;
+  const tunaCounts = {};
+  for (let i = 2; i <= 12; i++) tunaCounts[i] = 0;
+  return {
+    normal: {
+      totalRolls: 0,
+      oneDie: 0,
+      twoDice: 0,
+      counts: normalCounts,
+      byPlayer: {}
+    },
+    tuna: {
+      totalRolls: 0,
+      counts: tunaCounts,
+      byRoller: {}
+    }
+  };
+}
+
+function normalizeDiceStats(stats) {
+  const base = createDiceStats();
+  if (!stats || typeof stats !== 'object') return base;
+  const normal = stats.normal || {};
+  const tuna = stats.tuna || {};
+  base.normal.totalRolls = Number(normal.totalRolls || 0);
+  base.normal.oneDie = Number(normal.oneDie || 0);
+  base.normal.twoDice = Number(normal.twoDice || 0);
+  base.normal.byPlayer = normal.byPlayer && typeof normal.byPlayer === 'object' ? normal.byPlayer : {};
+  for (const key of Object.keys(base.normal.counts)) {
+    base.normal.counts[key] = Number(normal.counts?.[key] || 0);
+  }
+  base.tuna.totalRolls = Number(tuna.totalRolls || 0);
+  base.tuna.byRoller = tuna.byRoller && typeof tuna.byRoller === 'object' ? tuna.byRoller : {};
+  for (const key of Object.keys(base.tuna.counts)) {
+    base.tuna.counts[key] = Number(tuna.counts?.[key] || 0);
+  }
+  return base;
+}
+
+function recordNormalDiceStats(room, roll) {
+  if (!room || !roll?.dice?.length) return;
+  room.diceStats = normalizeDiceStats(room.diceStats);
+  const stats = room.diceStats.normal;
+  const total = Number(roll.rawTotal || roll.dice.reduce((a, b) => a + b, 0));
+  stats.totalRolls += 1;
+  if (roll.dice.length === 1) stats.oneDie += 1;
+  if (roll.dice.length === 2) stats.twoDice += 1;
+  if (stats.counts[total] === undefined) stats.counts[total] = 0;
+  stats.counts[total] += 1;
+  const id = roll.playerId || 'unknown';
+  const name = roll.playerName || 'プレイヤー';
+  const entry = stats.byPlayer[id] || { name, count: 0 };
+  entry.name = name;
+  entry.count += 1;
+  stats.byPlayer[id] = entry;
+}
+
+function recordTunaDiceStats(room, roll) {
+  if (!room || !roll?.dice?.length) return;
+  room.diceStats = normalizeDiceStats(room.diceStats);
+  const stats = room.diceStats.tuna;
+  const total = Number(roll.rawTotal || roll.total || roll.dice.reduce((a, b) => a + b, 0));
+  stats.totalRolls += 1;
+  if (stats.counts[total] === undefined) stats.counts[total] = 0;
+  stats.counts[total] += 1;
+  const id = roll.playerId || 'unknown';
+  const name = roll.playerName || 'プレイヤー';
+  const entry = stats.byRoller[id] || { name, count: 0 };
+  entry.name = name;
+  entry.count += 1;
+  stats.byRoller[id] = entry;
+}
+
+
 const rooms = new Map();
 
 const DATA_DIR = process.env.DATA_DIR || (fs.existsSync('/var/data') ? '/var/data' : path.join(__dirname, 'data'));
@@ -95,6 +171,7 @@ function normalizeLoadedRoom(room) {
   });
   room.rolling = null;
   room.pendingTuna = null;
+  room.tunaRollResult = null;
   room.deckMode = room.deckMode === 'plus' ? 'plus' : 'base';
   room.logs = Array.isArray(room.logs) ? room.logs : [];
   room.players.forEach((player) => {
@@ -105,6 +182,7 @@ function normalizeLoadedRoom(room) {
   room.turnSummary = Array.isArray(room.turnSummary) ? room.turnSummary : [];
   room.turnCoinStart = room.turnCoinStart || null;
   room.turnCoinEnd = room.turnCoinEnd || null;
+  room.diceStats = normalizeDiceStats(room.diceStats);
   room.deck = Array.isArray(room.deck) ? room.deck : [];
   room.market = room.market || {};
   room.eventSeq = Number(room.eventSeq || 0);
@@ -227,6 +305,7 @@ function resetRoomToWaiting(room) {
   room.pendingPurple = null;
   room.pendingRoll = null;
   room.pendingTuna = null;
+  room.tunaRollResult = null;
   room.rolling = null;
   room.winnerId = null;
   room.coinEvents = [];
@@ -234,6 +313,7 @@ function resetRoomToWaiting(room) {
   room.turnSummary = [];
   room.turnCoinStart = null;
   room.turnCoinEnd = null;
+  room.diceStats = createDiceStats();
 }
 
 
@@ -253,6 +333,7 @@ function publicRoom(room) {
     lastRoll: room.lastRoll,
     pendingRoll: room.pendingRoll,
     pendingTuna: room.pendingTuna || null,
+    tunaRollResult: room.tunaRollResult || null,
     rolling: room.rolling,
     canReroll: room.canReroll,
     pendingExtraTurn: room.pendingExtraTurn,
@@ -264,6 +345,7 @@ function publicRoom(room) {
     turnSummary: (room.turnSummary || []).slice(-30),
     turnCoinStart: room.turnCoinStart || null,
     turnCoinEnd: room.turnCoinEnd || null,
+    diceStats: normalizeDiceStats(room.diceStats),
     cards: getCardDefs(room),
     landmarks: getLandmarkDefs(room, true),
     lastUpdatedAt: room.lastUpdatedAt || Date.now()
@@ -408,10 +490,12 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
   const rawTotal = diceValues.reduce((a, b) => a + b, 0);
   const total = overrideTotal || rawTotal;
   room.turnSummary = [];
+  room.tunaRollResult = null;
   beginTurnMoneySummary(room);
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
   room.lastRoll = { dice: diceValues, total, rawTotal, playerId: roller.id, playerName: roller.name };
+  recordNormalDiceStats(room, room.lastRoll);
   log(room, `${roller.name} が ${diceValues.join(' + ')} = ${rawTotal}${total !== rawTotal ? `（港で ${total}）` : ''} を出しました。`);
 
   // Red cards: payments to other players first, counterclockwise.
@@ -472,8 +556,8 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
       rawTotal
     };
     room.phase = 'tunaRoll';
-    const current = tunaQueue[0];
-    log(room, `${current.playerName} のマグロ漁船：${roller.name} が追加ダイスを振ってください。`);
+    const holderNames = tunaQueue.map(t => t.playerName).join('、');
+    log(room, `マグロ漁船発動：${holderNames} が対象です。${roller.name} が追加ダイスを1回振ってください。`);
     return;
   }
 
@@ -625,6 +709,7 @@ function advanceTurn(room) {
   room.phase = 'roll';
   room.buildSubsidyGiven = false;
   room.lastRoll = null;
+  room.tunaRollResult = null;
   room.pendingRoll = null;
   room.turnCoinStart = null;
   room.turnCoinEnd = null;
@@ -742,6 +827,7 @@ io.on('connection', (socket) => {
       coinEvents: [],
       specialEvents: [],
       eventSeq: 0,
+      diceStats: createDiceStats(),
       spectators: [],
       lastUpdatedAt: Date.now()
     };
@@ -846,11 +932,13 @@ io.on('connection', (socket) => {
     room.pendingPurple = null;
     room.pendingRoll = null;
     room.pendingTuna = null;
+    room.tunaRollResult = null;
     room.rolling = null;
     room.winnerId = null;
     room.coinEvents = [];
     room.specialEvents = [];
     room.turnSummary = [];
+    room.diceStats = createDiceStats();
     log(room, `ゲームを開始しました。山札から場を ${marketSize(room)} 種類まで作りました。山札残り ${room.deck.length} 枚。`);
     cb?.({ ok: true });
     emitRoom(room);
@@ -954,8 +1042,8 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'tunaRoll' || !room.pendingTuna) return;
     if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
-    const current = room.pendingTuna.queue[room.pendingTuna.currentIndex];
-    if (!current || room.pendingTuna.rollerId !== socket.data.playerId) return cb?.({ ok: false, message: '出目を出したプレイヤーが追加ダイスを振ります。' });
+    const targets = Array.isArray(room.pendingTuna.queue) ? room.pendingTuna.queue : [];
+    if (!targets.length || room.pendingTuna.rollerId !== socket.data.playerId) return cb?.({ ok: false, message: '出目を出したプレイヤーが追加ダイスを振ります。' });
     const roller = room.players.find(p => p.id === room.pendingTuna.rollerId);
     if (!roller) return cb?.({ ok: false, message: 'プレイヤーが見つかりません。' });
 
@@ -966,29 +1054,34 @@ io.on('connection', (socket) => {
     setTimeout(() => {
       const currentRoom = rooms.get(room.code);
       if (!currentRoom || currentRoom.status !== 'playing' || currentRoom.phase !== 'tunaRoll' || !currentRoom.pendingTuna || !currentRoom.rolling || currentRoom.rolling.nonce !== room.rolling?.nonce) return;
-      const tuna = currentRoom.pendingTuna.queue[currentRoom.pendingTuna.currentIndex];
-      const tunaPlayer = currentRoom.players.find(p => p.id === tuna?.playerId);
-      if (!tuna || !tunaPlayer) return;
+      const saved = currentRoom.pendingTuna;
       const tunaDice = [1 + Math.floor(Math.random() * 6), 1 + Math.floor(Math.random() * 6)];
       const diceSum = tunaDice.reduce((a, b) => a + b, 0);
-      const amount = diceSum * tuna.count;
+      const rollerName = saved.rollerName || '出目を出したプレイヤー';
       currentRoom.rolling = null;
-      if (amount > 0) {
+      currentRoom.tunaRollResult = {
+        dice: tunaDice,
+        total: diceSum,
+        rawTotal: diceSum,
+        playerId: saved.rollerId,
+        playerName: rollerName,
+        note: 'マグロ漁船の追加ダイスです。カード効果・港+2・遊園地は発動しません。'
+      };
+      recordTunaDiceStats(currentRoom, currentRoom.tunaRollResult);
+
+      for (const tuna of saved.queue || []) {
+        const tunaPlayer = currentRoom.players.find(p => p.id === tuna?.playerId);
+        if (!tuna || !tunaPlayer) continue;
+        const amount = diceSum * tuna.count;
+        if (amount <= 0) continue;
         bankIncome(currentRoom, tunaPlayer, amount, CARD_DEFS.tunaBoat.name);
-        const rollerName = currentRoom.pendingTuna.rollerName || '出目を出したプレイヤー';
-        const text = `${tunaPlayer.name} のマグロ漁船：${rollerName} が追加ダイス ${tunaDice.join(' + ')} = ${diceSum}、${tuna.count}隻で ${amount} コイン。（追加ダイスには港+2なし）`;
+        const text = `${tunaPlayer.name} のマグロ漁船：${rollerName} の追加ダイス ${tunaDice.join(' + ')} = ${diceSum}、${tuna.count}隻で ${amount} コイン。（カード効果・港+2・遊園地なし）`;
         log(currentRoom, text);
-        specialEvent(currentRoom, 'effect-income', tunaPlayer, text, { cardId: 'tunaBoat', amount, dice: tunaDice, count: tuna.count });
+        specialEvent(currentRoom, 'effect-income', tunaPlayer, text, { cardId: 'tunaBoat', amount, dice: tunaDice, count: tuna.count, tunaExtra: true });
       }
-      currentRoom.pendingTuna.currentIndex += 1;
-      if (currentRoom.pendingTuna.currentIndex < currentRoom.pendingTuna.queue.length) {
-        const next = currentRoom.pendingTuna.queue[currentRoom.pendingTuna.currentIndex];
-        log(currentRoom, `${next.playerName} のマグロ漁船：${currentRoom.pendingTuna.rollerName || '出目を出したプレイヤー'} が追加ダイスを振ってください。`);
-      } else {
-        const saved = currentRoom.pendingTuna;
-        currentRoom.pendingTuna = null;
-        continueRollAfterTuna(currentRoom, saved.diceValues, saved.total);
-      }
+
+      currentRoom.pendingTuna = null;
+      continueRollAfterTuna(currentRoom, saved.diceValues, saved.total);
       emitRoom(currentRoom);
     }, 1100);
   });

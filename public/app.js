@@ -570,6 +570,73 @@ function resultTableHtml() {
   return `<div class="result-box"><h3>リザルト</h3><table class="result-table"><thead><tr><th>#</th><th>プレイヤー</th><th>ランドマーク</th><th>コイン</th><th>施設</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 
+
+function diceStatsRows(counts, min, max) {
+  const maxCount = Math.max(1, ...Array.from({ length: max - min + 1 }, (_, i) => Number(counts?.[min + i] || 0)));
+  return Array.from({ length: max - min + 1 }, (_, i) => {
+    const value = min + i;
+    const count = Number(counts?.[value] || 0);
+    const width = Math.max(4, Math.round((count / maxCount) * 100));
+    return `<div class="dice-stat-row ${count ? 'has-count' : ''}">
+      <span class="dice-stat-value">${value}</span>
+      <div class="dice-stat-bar"><i style="width:${width}%"></i></div>
+      <strong>${count}</strong>
+    </div>`;
+  }).join('');
+}
+
+function diceStatsPlayerRows(obj) {
+  const rows = Object.values(obj || {}).sort((a, b) => (b.count || 0) - (a.count || 0));
+  if (!rows.length) return '<p class="small">記録なし</p>';
+  return rows.map(item => `<div class="dice-stat-player"><span>${escapeHtml(item.name || 'プレイヤー')}</span><strong>${Number(item.count || 0)}回</strong></div>`).join('');
+}
+
+function diceStatsHtml() {
+  const stats = state?.diceStats;
+  if (!stats) return '';
+  const normal = stats.normal || {};
+  const tuna = stats.tuna || {};
+  const normalTotal = Number(normal.totalRolls || 0);
+  const tunaTotal = Number(tuna.totalRolls || 0);
+  const counts = normal.counts || {};
+  const maxEntry = Object.entries(counts).reduce((best, [value, count]) => {
+    const n = Number(count || 0);
+    if (n > best.count) return { value, count: n };
+    if (n === best.count && n > 0 && Number(value) < Number(best.value || 99)) return { value, count: n };
+    return best;
+  }, { value: '-', count: 0 });
+
+  return `<div class="dice-stats-box">
+    <div class="dice-stats-head">
+      <h3>このゲームのダイス統計</h3>
+      <span>通常ダイス ${normalTotal}回</span>
+    </div>
+    <div class="dice-stats-summary">
+      <div><span>最多出目</span><strong>${maxEntry.count ? `${maxEntry.value}（${maxEntry.count}回）` : '-'}</strong></div>
+      <div><span>1個振り</span><strong>${Number(normal.oneDie || 0)}回</strong></div>
+      <div><span>2個振り</span><strong>${Number(normal.twoDice || 0)}回</strong></div>
+    </div>
+    <div class="dice-stats-grid">
+      <section>
+        <h4>通常ダイスの出目</h4>
+        <div class="dice-stat-list">${diceStatsRows(normal.counts || {}, 1, 12)}</div>
+      </section>
+      <section>
+        <h4>プレイヤー別</h4>
+        <div class="dice-stat-list player-list">${diceStatsPlayerRows(normal.byPlayer || {})}</div>
+      </section>
+    </div>
+    <div class="dice-stats-tuna">
+      <h4>マグロ漁船の追加ダイス</h4>
+      <p>カード効果・港+2・遊園地を発動しない特殊ダイスとして、通常ダイスとは別に集計しています。</p>
+      <div class="dice-stats-summary compact">
+        <div><span>追加ダイス</span><strong>${tunaTotal}回</strong></div>
+      </div>
+      ${tunaTotal ? `<div class="dice-stat-list tuna-list">${diceStatsRows(tuna.counts || {}, 2, 12)}</div><div class="dice-stat-list player-list">${diceStatsPlayerRows(tuna.byRoller || {})}</div>` : '<p class="small">このゲームではマグロ漁船の追加ダイスはありませんでした。</p>'}
+    </div>
+  </div>`;
+}
+
 function diceStateKey(next) {
   const roll = next?.pendingRoll || next?.lastRoll;
   if (!roll) return '';
@@ -834,12 +901,24 @@ function renderTurnMoneySummary() {
   </div>`;
 }
 
+
+function renderTunaRollResult() {
+  const roll = state?.tunaRollResult;
+  if (!roll?.dice?.length) return '';
+  const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
+  return `<div class="turn-summary-tuna-roll">
+    <div class="turn-summary-tuna-head"><span>マグロ漁船 追加ダイス</span><strong>合計 ${escapeHtml(rollExpression(roll))}</strong></div>
+    <div class="dice-row result-dice-row">${faces}</div>
+    <p>この追加ダイスではカード効果・港+2・遊園地は発動しません。</p>
+  </div>`;
+}
+
 function renderRecentNotice() {
   const el = $('recentNotice');
   if (!el || !state || state.status === 'waiting') return;
   const events = state.turnSummary || [];
   const items = summarizeTurnEvents(events);
-  const hasRoll = Boolean(state.lastRoll || state.pendingRoll);
+  const hasRoll = Boolean(state.lastRoll || state.pendingRoll || state.tunaRollResult);
   if (state.status === 'finished') {
     el.classList.add('hidden');
     return;
@@ -858,6 +937,7 @@ function renderRecentNotice() {
   const body = items.length
     ? `<ul class="turn-summary-list">${items.map(item => `<li class="${item.kind}"><span class="turn-summary-icon">${item.icon}</span><span>${escapeHtml(item.label)}</span></li>`).join('')}</ul>`
     : `<p class="turn-summary-empty">このターンの施設効果はまだ発生していません。</p>`;
+  const tunaRollSummary = renderTunaRollResult();
   const moneySummary = renderTurnMoneySummary();
 
   el.className = 'recent-notice turn-summary-panel';
@@ -1156,7 +1236,7 @@ function renderActions() {
     const hostActions = state.hostId === myId
       ? '<button onclick="emitWithMessage(\'resetRoom\')">同じメンバーでもう一度遊ぶ</button>'
       : '<span class="small">同じメンバーの再戦はホストが開始できます。</span>';
-    el.innerHTML = `${resultTableHtml()}<div class="actions wrap">${hostActions}<button class="accent" onclick="createFreshRoom()">新しい部屋を作る</button><button class="secondary" onclick="backToLobbyForNewRoom()">ロビーに戻る</button></div>`;
+    el.innerHTML = `${resultTableHtml()}${diceStatsHtml()}<div class="actions wrap">${hostActions}<button class="accent" onclick="createFreshRoom()">新しい部屋を作る</button><button class="secondary" onclick="backToLobbyForNewRoom()">ロビーに戻る</button></div>`;
     return;
   }
   if (state.rolling) {
@@ -1199,7 +1279,8 @@ function renderActions() {
       return;
     }
     if (state.pendingTuna?.rollerId !== myId) {
-      el.innerHTML = `<p>${escapeHtml(state.pendingTuna?.rollerName || '出目を出したプレイヤー')} が、${escapeHtml(tuna?.playerName || 'プレイヤー')} のマグロ漁船追加ダイスを振るのを待っています。</p>${hostControlHtml()}`;
+      const names = (state.pendingTuna?.queue || []).map(t => t.playerName).join('、') || '対象プレイヤー';
+      el.innerHTML = `<p>${escapeHtml(state.pendingTuna?.rollerName || '出目を出したプレイヤー')} が、${escapeHtml(names)} のマグロ漁船追加ダイスを振るのを待っています。</p>${hostControlHtml()}`;
       return;
     }
     if (localRollingCount) {
@@ -1210,7 +1291,7 @@ function renderActions() {
     el.innerHTML = `
       <div class="choice-panel">
         <h3>マグロ漁船：追加ダイス</h3>
-        <p>${escapeHtml(tuna?.playerName || 'プレイヤー')} のマグロ漁船 ${tuna?.count || 1} 隻が発動しました。出目を出したあなたが2個の追加ダイスを振ってください。</p>
+        <p>マグロ漁船が発動しました。対象者が複数人いても、出目を出したあなたが追加ダイスを1回だけ振ります。出た目の合計分を各マグロ漁船保持者が受け取ります。</p>
         <div class="actions"><button onclick="rollTunaDice()">追加ダイスを振る</button></div>
       </div>${hostControlHtml()}`;
     return;

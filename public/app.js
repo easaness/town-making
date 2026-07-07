@@ -22,6 +22,9 @@ let masterVolume = Number(localStorage.getItem('machikoroVolume') || 70) / 100;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
+const deckModeText = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り' };
+function deckLabel(mode) { return deckModeText[mode] || deckModeText.base; }
+function isSharpDeck() { return state?.deckMode === 'sharp' || state?.deckMode === 'all'; }
 
 const initialRoomFromUrl = new URLSearchParams(location.search).get('room');
 if (initialRoomFromUrl) {
@@ -414,11 +417,13 @@ function updateDeckModeHelp() {
   const mode = document.querySelector('input[name="deckMode"]:checked')?.value || 'base';
   const help = $('deckModeHelp');
   if (!help) return;
-  if (mode === 'plus') {
-    help.innerHTML = '<strong>街コロ＋：</strong>基本カードに拡張カードを混ぜて遊びます。';
-  } else {
-    help.innerHTML = '<strong>街コロ：</strong>基本カードのみ。通常プレイを壊さず、今まで通り遊べます。';
-  }
+  const map = {
+    base: '<strong>街コロ：</strong>基本カードのみ。通常プレイを壊さず、今まで通り遊べます。',
+    plus: '<strong>街コロ＋：</strong>基本カードに拡張カードを混ぜて遊びます。',
+    sharp: '<strong>街コロ#：</strong>基本カードに街コロ#カードを混ぜ、休業ルールを使います。',
+    all: '<strong>全部入り：</strong>街コロ＋と街コロ#をどちらも混ぜて遊びます。'
+  };
+  help.innerHTML = map[mode] || map.base;
 }
 
 document.querySelectorAll('input[name="deckMode"]').forEach((input) => {
@@ -521,7 +526,9 @@ function phaseGuideText() {
       const tuna = currentTunaPending();
       return `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} が ${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振るのを待っています。`;
     }
+    if (state.phase === 'sharpChoice') return `${cp?.name || 'プレイヤー'} が街コロ#カードの対象を選んでいます。`;
     if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
+    if (state.phase === 'ventureInvest') return `${cp?.name || 'プレイヤー'} がベンチャー企業への投資を選んでいます。`;
     if (state.phase === 'build') return `${cp?.name || 'プレイヤー'} が建設するか選んでいます。`;
     return `${cp?.name || 'プレイヤー'} の操作待ちです。`;
   }
@@ -532,7 +539,9 @@ function phaseGuideText() {
     const tuna = currentTunaPending();
     return state.pendingTuna?.rollerId === myId ? `${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振ってください。` : `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} のマグロ漁船追加ダイス待ちです。`;
   }
+  if (state.phase === 'sharpChoice') return '街コロ#カードの対象を選んでください。';
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
+  if (state.phase === 'ventureInvest') return 'ベンチャー企業に1コイン投資するか選んでください。';
   if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
   return '';
 }
@@ -540,7 +549,7 @@ function phaseGuideText() {
 function isTriggeredCard(card, owner) {
   const roll = state?.lastRoll;
   if (!roll?.total || !card?.dice?.includes(roll.total)) return false;
-  if (!['build', 'purple'].includes(state.phase)) return false;
+  if (!['build', 'purple', 'sharpChoice', 'ventureInvest'].includes(state.phase)) return false;
 
   // Actual activation rules by card color:
   // blue: anyone's turn, red: other player's turn, green/purple: owner's turn only.
@@ -718,7 +727,20 @@ function cardDescription(id, card) {
     foodWarehouse: '自分のターン。自分の飲食店1件につき2コイン。',
     tunaBoat: '誰のターンでも、港が完成していれば追加で2個ダイスを振り、その合計分コイン。追加ダイスには港+2なし。',
     publisher: '自分のターン。全員から、相手の飲食店・商店1件につき1コイン。',
-    taxOffice: '自分のターン。10コイン以上持つ相手から半分のコインをもらう。'
+    taxOffice: '自分のターン。10コイン以上持つ相手から半分のコインをもらう。',
+    generalStore: '自分のターン。完成ランドマークが0〜1軒なら銀行から2コイン。',
+    corn: '誰のターンでも、完成ランドマークが0〜1軒なら銀行から1コイン。',
+    renovation: '自分のターン。完成済みランドマーク1軒を未完成に戻し、銀行から8コイン。',
+    french: '他人のターン。出した人の完成ランドマークが2軒以上なら5コイン。モールで+1。',
+    loan: '建設時に銀行から5コイン。自分のターンに出ると銀行へ2コイン支払い。',
+    grape: '誰のターンでも銀行から3コイン。',
+    cleaning: '自分のターン。大施設以外を1種類選び、全員のその施設を休業。休業させた枚数だけ収入。',
+    winery: '自分のターン。ブドウ園1件につき6コイン。その後ワイナリーは休業。',
+    moving: '自分のターン。大施設以外1軒を他人に渡し、銀行から4コイン。',
+    venture: '自分のターン終了時にカードごとに1コイン投資可能。出目10で投資額分を全員からもらう。',
+    drinkFactory: '自分のターン。全員の飲食店1件につき1コイン。',
+    park: '自分のターン。全員のコインを集め、銀行補充込みで平等に分配。',
+    memberBar: '他人のターン。出した人の完成ランドマークが3軒以上なら全コイン。'
   };
   return map[id] || card.name;
 }
@@ -752,7 +774,7 @@ function renderStatus() {
   if (victoryBanner) victoryBanner.classList.add('hidden');
   if (state.status === 'waiting') {
     $('statusTitle').textContent = '待機中';
-    $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。${state.deckMode === 'plus' ? ' デッキ: 街コロ＋' : ' デッキ: 街コロ'}`;
+    $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。 デッキ: ${deckLabel(state.deckMode)}`;
     return;
   }
   if (state.status === 'finished') {
@@ -784,13 +806,13 @@ function renderStatus() {
       ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
       : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
   }
-  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'purple' ? '紫カード選択フェーズ' : '建設フェーズ';
+  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'sharpChoice' ? '街コロ#選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : state.phase === 'ventureInvest' ? 'ベンチャー企業投資' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${rollExpression(state.lastRoll)}` : '';
   const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
   const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
   const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
-  const deckText = state.deckMode === 'plus' ? ' / デッキ 街コロ＋' : ' / デッキ 街コロ';
+  const deckText = ` / デッキ ${deckLabel(state.deckMode)}`;
   $('statusText').innerHTML = `<strong>${escapeHtml(phaseGuideText())}</strong><br><span>${escapeHtml(`${phaseText}${rollingText}${rollText}${selfText}${marketText}${spectatorText}${deckText}`)}</span>`;
   const rollNoticeEl = $('rollNotice');
   if (rollNoticeEl) rollNoticeEl.classList.add('hidden');
@@ -948,6 +970,7 @@ function renderRecentNotice() {
     </div>
     ${rollLine}
     ${body}
+    ${tunaRollSummary}
     ${moneySummary}`;
 }
 
@@ -1027,7 +1050,7 @@ function renderHostAdmin() {
     return;
   }
   const cp = currentPlayer();
-  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', tunaRoll: 'マグロ漁船', purple: '紫カード選択', build: '建設' }[state.phase] || state.phase;
+  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', tunaRoll: 'マグロ漁船', sharpChoice: '街コロ#選択', purple: '紫カード選択', ventureInvest: 'ベンチャー投資', build: '建設' }[state.phase] || state.phase;
   body.innerHTML = `
     <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
     <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
@@ -1100,6 +1123,13 @@ function stickyHudActionHtml() {
     if (state.pendingTuna?.rollerId === myId) return `<button onclick="rollTunaDice()">追加ダイスを振る</button>`;
     return `<span class="hud-wait">${escapeHtml(state.pendingTuna?.rollerName || '相手')} の追加ダイス待ち</span>`;
   }
+
+  if (state.phase === 'sharpChoice') {
+    return '<span class="hud-wait">街コロ#カードを選択中</span>';
+  }
+  if (state.phase === 'ventureInvest') {
+    return `<button onclick="submitVentureInvest()">投資する</button><button class="secondary" onclick="emitWithMessage('skipVentureInvest')">投資しない</button>`;
+  }
   if (state.phase === 'purple') {
     return '<span class="hud-wait">紫カードを選択中</span>';
   }
@@ -1128,8 +1158,12 @@ function renderStickyHud() {
           ? '港'
           : state.phase === 'tunaRoll'
           ? 'マグロ漁船'
+          : state.phase === 'sharpChoice'
+          ? '街コロ#'
           : state.phase === 'purple'
           ? '紫カード'
+          : state.phase === 'ventureInvest'
+          ? '投資'
           : state.phase === 'build'
             ? '建設'
             : '進行中';
@@ -1151,12 +1185,19 @@ function renderPlayers() {
       .map(([id, n]) => {
         const card = state.cards[id];
         const triggered = isTriggeredCard(card, p);
-        return `<div class="owned-card ${card.color} ${triggered ? 'triggered' : ''}">
+        const closed = p.closedCards?.[id] || 0;
+        const ventureLines = id === 'venture' && Array.isArray(p.ventureCards)
+          ? `<div class="venture-token-list">${p.ventureCards.map((v, i) => `<span class="venture-token ${v.closed ? 'closed' : ''}">#${i + 1}: ${v.tokens || 0}🪙${v.closed ? ' 休業' : ''}</span>`).join('')}</div>`
+          : '';
+        const closedLine = closed ? `<div class="closed-line">休業中 ${closed}枚 / 有効 ${Math.max(0, n - closed)}枚</div>` : '';
+        return `<div class="owned-card ${card.color} ${triggered ? 'triggered' : ''} ${closed ? 'has-closed' : ''}">
           <div class="owned-card-head">
             <strong>${card.name}×${n}</strong>
             ${smallCardMeta(card)}
           </div>
           <div class="owned-trigger-row"><span>発動</span>${diceBadges(card)}</div>
+          ${closedLine}
+          ${ventureLines}
           ${triggered ? '<div class="triggered-label">今回発動</div>' : ''}
           <div class="owned-card-effect">${cardDescription(id, card)}</div>
         </div>`;
@@ -1188,6 +1229,82 @@ function nonPurpleOwnedOptions(player, selected = '') {
     .sort(([a], [b]) => state.cards[a].name.localeCompare(state.cards[b].name, 'ja'))
     .map(([id, n]) => `<option value="${id}" ${id === selected ? 'selected' : ''}>${state.cards[id].name}×${n}</option>`)
     .join('');
+}
+
+
+function completedLandmarkOptions(player) {
+  if (!player) return '';
+  return Object.entries(player.landmarks || {})
+    .filter(([id, done]) => done && state.landmarks[id] && !state.landmarks[id].displayOnly)
+    .map(([id]) => `<option value="${id}">${escapeHtml(state.landmarks[id].name)}</option>`)
+    .join('');
+}
+
+function cleaningCardOptions() {
+  const ids = new Set();
+  for (const p of state.players || []) {
+    for (const [id, n] of Object.entries(p.cards || {})) {
+      if (n > 0 && state.cards[id] && state.cards[id].color !== 'purple' && (n - (p.closedCards?.[id] || 0)) > 0) ids.add(id);
+    }
+  }
+  return [...ids].sort((a, b) => state.cards[a].name.localeCompare(state.cards[b].name, 'ja'))
+    .map(id => `<option value="${id}">${escapeHtml(state.cards[id].name)}</option>`)
+    .join('');
+}
+
+function movingCardOptions(player) {
+  if (!player) return '';
+  const rows = [];
+  for (const [id, n] of Object.entries(player.cards || {})) {
+    const card = state.cards[id];
+    if (!card || card.color === 'purple' || n <= 0) continue;
+    if (id === 'venture' && Array.isArray(player.ventureCards) && player.ventureCards.length) {
+      player.ventureCards.forEach((v, i) => rows.push(`<option value="venture:${v.id}">${escapeHtml(card.name)} #${i + 1}（投資${v.tokens || 0}🪙${v.closed ? '・休業' : ''}）</option>`));
+    } else {
+      rows.push(`<option value="${id}">${escapeHtml(card.name)}×${n}</option>`);
+    }
+  }
+  return rows.join('');
+}
+
+function ventureInvestOptions(player) {
+  return (player?.ventureCards || [])
+    .filter(v => !v.closed)
+    .map((v, i) => `<option value="${v.id}">ベンチャー企業 #${i + 1}（現在 ${v.tokens || 0}🪙）</option>`)
+    .join('');
+}
+
+function submitSharpRenovation() {
+  emitWithMessage('sharpRenovation', { landmarkId: $('sharpLandmark')?.value });
+}
+
+function submitSharpCleaning() {
+  emitWithMessage('sharpCleaning', { cardId: $('sharpCleaningCard')?.value });
+}
+
+function submitSharpMoving() {
+  const raw = $('sharpMovingCard')?.value || '';
+  const [cardId, instanceId] = raw.startsWith('venture:') ? ['venture', raw.slice('venture:'.length)] : [raw, null];
+  emitWithMessage('sharpMoving', { cardId, instanceId, targetId: $('sharpMovingTarget')?.value });
+}
+
+function submitVentureInvest() {
+  emitWithMessage('ventureInvest', { ventureId: $('ventureInvestCard')?.value });
+}
+
+function sharpChoiceHtml(effect) {
+  const m = me();
+  if (effect === 'renovation') {
+    return `<div class="choice-panel"><h3>改装屋：戻すランドマークを選択</h3><label>ランドマーク<select id="sharpLandmark">${completedLandmarkOptions(m)}</select></label><div class="actions"><button onclick="submitSharpRenovation()">未完成に戻して8コイン</button></div></div>`;
+  }
+  if (effect === 'cleaning') {
+    return `<div class="choice-panel"><h3>清掃業：休業させる施設を選択</h3><label>施設<select id="sharpCleaningCard">${cleaningCardOptions()}</select></label><div class="actions"><button onclick="submitSharpCleaning()">この施設を休業にする</button></div></div>`;
+  }
+  if (effect === 'moving') {
+    const targets = (state.players || []).filter(p => p.id !== myId);
+    return `<div class="choice-panel"><h3>引っ越し屋：渡す施設と相手を選択</h3><label>渡す施設<select id="sharpMovingCard">${movingCardOptions(m)}</select></label><label>相手<select id="sharpMovingTarget">${targets.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select></label><div class="actions"><button onclick="submitSharpMoving()">渡して4コイン</button></div></div>`;
+  }
+  return '<p>街コロ#カードの選択待ちです。</p>';
 }
 
 function businessChoiceHtml() {
@@ -1294,6 +1411,37 @@ function renderActions() {
         <p>マグロ漁船が発動しました。対象者が複数人いても、出目を出したあなたが追加ダイスを1回だけ振ります。出た目の合計分を各マグロ漁船保持者が受け取ります。</p>
         <div class="actions"><button onclick="rollTunaDice()">追加ダイスを振る</button></div>
       </div>${hostControlHtml()}`;
+    return;
+  }
+
+  if (state.phase === 'sharpChoice') {
+    const effect = state.pendingSharp?.current;
+    if (!me()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>観戦中です。${escapeHtml(cp?.name || 'プレイヤー')} が街コロ#カードの対象を選んでいます。</p>`;
+      return;
+    }
+    if (!isMyTurn()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>${escapeHtml(cp?.name || 'プレイヤー')} が街コロ#カードの対象を選んでいます。</p>${hostControlHtml()}`;
+      return;
+    }
+    el.innerHTML = sharpChoiceHtml(effect) + hostControlHtml();
+    return;
+  }
+  if (state.phase === 'ventureInvest') {
+    const m = me();
+    if (!m) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>観戦中です。${escapeHtml(cp?.name || 'プレイヤー')} がベンチャー企業への投資を選んでいます。</p>`;
+      return;
+    }
+    if (!isMyTurn()) {
+      const cp = currentPlayer();
+      el.innerHTML = `<p>${escapeHtml(cp?.name || 'プレイヤー')} がベンチャー企業への投資を選んでいます。</p>${hostControlHtml()}`;
+      return;
+    }
+    el.innerHTML = `<div class="choice-panel"><h3>ベンチャー企業：1コイン投資しますか？</h3><p>投資額はカードごとに管理され、出目10でその額を全員からもらいます。</p><label>投資先<select id="ventureInvestCard">${ventureInvestOptions(m)}</select></label><div class="actions"><button onclick="submitVentureInvest()">1コイン投資</button><button class="secondary" onclick="emitWithMessage('skipVentureInvest')">投資しない</button></div></div>${hostControlHtml()}`;
     return;
   }
   if (state.phase === 'purple') {

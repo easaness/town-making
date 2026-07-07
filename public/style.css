@@ -2991,3 +2991,38 @@ button:disabled {
     grid-template-columns: 1fr;
   }
 }
+
+
+.owned-card.has-closed {
+  opacity: 0.82;
+}
+.closed-line {
+  margin-top: 6px;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #8a4b00;
+}
+.venture-token-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 6px;
+}
+.venture-token {
+  display: inline-flex;
+  padding: 3px 6px;
+  border-radius: 999px;
+  background: rgba(0,0,0,0.08);
+  font-size: 0.75rem;
+}
+.venture-token.closed {
+  opacity: 0.55;
+  text-decoration: line-through;
+}
+.deck-choice-badge.sharp { background: #222; color: #fff; }
+.deck-choice-badge.all { background: linear-gradient(135deg, #6c5ce7, #00b894); color: #fff; }
+.choice-panel select {
+  width: 100%;
+  margin-top: 6px;
+  margin-bottom: 10px;
+}

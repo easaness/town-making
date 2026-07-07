@@ -43,7 +43,23 @@ const PLUS_CARD_DEFS = {
   taxOffice: { name: '税務署', dice: [8, 9], cost: 4, color: 'purple', kind: 'major', industry: 'major', plusOnly: true }
 };
 
-const CARD_DEFS = { ...BASE_CARD_DEFS, ...PLUS_CARD_DEFS };
+const SHARP_CARD_DEFS = {
+  generalStore: { name: '雑貨屋', dice: [2], cost: 0, color: 'green', kind: 'shop', industry: 'shop', sharpOnly: true },
+  corn: { name: 'コーン畑', dice: [3, 4], cost: 2, color: 'blue', kind: 'grain', industry: 'grain', sharpOnly: true },
+  renovation: { name: '改装屋', dice: [4], cost: 2, color: 'green', kind: 'shop', industry: 'shop', sharpOnly: true, needsChoice: true },
+  french: { name: '高級フレンチ', dice: [5], cost: 3, color: 'red', kind: 'restaurant', industry: 'restaurant', sharpOnly: true },
+  loan: { name: '貸金業', dice: [5, 6], cost: 0, color: 'green', kind: 'finance', industry: 'finance', sharpOnly: true },
+  grape: { name: 'ブドウ園', dice: [7], cost: 3, color: 'blue', kind: 'grain', industry: 'grain', sharpOnly: true },
+  cleaning: { name: '清掃業', dice: [8], cost: 4, color: 'green', kind: 'service', industry: 'service', sharpOnly: true, needsChoice: true },
+  winery: { name: 'ワイナリー', dice: [9], cost: 3, color: 'green', kind: 'factory', industry: 'factory', sharpOnly: true },
+  moving: { name: '引っ越し屋', dice: [9, 10], cost: 2, color: 'green', kind: 'service', industry: 'service', sharpOnly: true, needsChoice: true },
+  venture: { name: 'ベンチャー企業', dice: [10], cost: 1, color: 'green', kind: 'tech', industry: 'tech', sharpOnly: true, instanceManaged: true },
+  drinkFactory: { name: 'ドリンク工場', dice: [11], cost: 5, color: 'green', kind: 'factory', industry: 'factory', sharpOnly: true },
+  park: { name: '公園', dice: [11, 12, 13], cost: 3, color: 'green', kind: 'service', industry: 'service', sharpOnly: true },
+  memberBar: { name: '会員制BAR', dice: [12, 13, 14], cost: 4, color: 'red', kind: 'restaurant', industry: 'restaurant', sharpOnly: true }
+};
+
+const CARD_DEFS = { ...BASE_CARD_DEFS, ...PLUS_CARD_DEFS, ...SHARP_CARD_DEFS };
 
 const BASE_LANDMARKS = {
   station: { name: '駅', cost: 4, text: 'ダイスを2個振れる' },
@@ -63,13 +79,27 @@ const OFFICE_DISPLAY = {
 
 const LANDMARKS = { ...BASE_LANDMARKS, ...PLUS_LANDMARKS };
 
+function normalizeDeckMode(mode) {
+  return ['base', 'plus', 'sharp', 'all'].includes(mode) ? mode : 'base';
+}
+
 function isPlusMode(roomOrMode) {
-  const mode = typeof roomOrMode === 'string' ? roomOrMode : roomOrMode?.deckMode;
-  return mode === 'plus';
+  const mode = normalizeDeckMode(typeof roomOrMode === 'string' ? roomOrMode : roomOrMode?.deckMode);
+  return mode === 'plus' || mode === 'all';
+}
+
+function isSharpMode(roomOrMode) {
+  const mode = normalizeDeckMode(typeof roomOrMode === 'string' ? roomOrMode : roomOrMode?.deckMode);
+  return mode === 'sharp' || mode === 'all';
 }
 
 function getCardDefs(roomOrMode) {
-  return isPlusMode(roomOrMode) ? CARD_DEFS : BASE_CARD_DEFS;
+  const mode = normalizeDeckMode(typeof roomOrMode === 'string' ? roomOrMode : roomOrMode?.deckMode);
+  return {
+    ...BASE_CARD_DEFS,
+    ...(mode === 'plus' || mode === 'all' ? PLUS_CARD_DEFS : {}),
+    ...(mode === 'sharp' || mode === 'all' ? SHARP_CARD_DEFS : {})
+  };
 }
 
 function getLandmarkDefs(roomOrMode, includeDisplay = true) {
@@ -172,9 +202,17 @@ function normalizeLoadedRoom(room) {
   room.rolling = null;
   room.pendingTuna = null;
   room.tunaRollResult = null;
-  room.deckMode = room.deckMode === 'plus' ? 'plus' : 'base';
+  room.deckMode = normalizeDeckMode(room.deckMode);
   room.logs = Array.isArray(room.logs) ? room.logs : [];
   room.players.forEach((player) => {
+    player.cards = player.cards || {};
+    player.closedCards = player.closedCards || {};
+    player.ventureCards = Array.isArray(player.ventureCards) ? player.ventureCards : [];
+    if (count(player, 'venture') > player.ventureCards.length) {
+      for (let i = player.ventureCards.length; i < count(player, 'venture'); i++) {
+        player.ventureCards.push({ id: randomUUID(), tokens: 0, closed: false });
+      }
+    }
     player.landmarks = { ...initialLandmarks(room.deckMode), ...(player.landmarks || {}) };
   });
   room.coinEvents = Array.isArray(room.coinEvents) ? room.coinEvents : [];
@@ -280,6 +318,8 @@ function makePlayer(playerId, name, socketId, deckMode = 'base') {
     name: (name || 'ゲスト').slice(0, 18),
     coins: 3,
     cards: { wheat: 1, bakery: 1 },
+    closedCards: {},
+    ventureCards: [],
     landmarks: initialLandmarks(deckMode),
     connected: true
   };
@@ -289,6 +329,8 @@ function makePlayer(playerId, name, socketId, deckMode = 'base') {
 function resetPlayerForNewGame(player, deckMode = 'base') {
   player.coins = 3;
   player.cards = { wheat: 1, bakery: 1 };
+  player.closedCards = {};
+  player.ventureCards = [];
   player.landmarks = initialLandmarks(deckMode);
 }
 
@@ -303,6 +345,9 @@ function resetRoomToWaiting(room) {
   room.canReroll = true;
   room.pendingExtraTurn = false;
   room.pendingPurple = null;
+  room.pendingSharp = null;
+  room.pendingPurpleQueue = null;
+  room.pendingVentureInvest = null;
   room.pendingRoll = null;
   room.pendingTuna = null;
   room.tunaRollResult = null;
@@ -338,6 +383,8 @@ function publicRoom(room) {
     canReroll: room.canReroll,
     pendingExtraTurn: room.pendingExtraTurn,
     pendingPurple: room.pendingPurple || null,
+    pendingSharp: room.pendingSharp || null,
+    pendingVentureInvest: room.pendingVentureInvest || null,
     winnerId: room.winnerId,
     logs: room.logs.slice(-60),
     coinEvents: (room.coinEvents || []).slice(-30),
@@ -436,7 +483,52 @@ function getCurrentPlayer(room) {
 }
 
 function count(player, cardId) {
-  return player.cards[cardId] || 0;
+  return player?.cards?.[cardId] || 0;
+}
+
+function closedCount(player, cardId) {
+  return player?.closedCards?.[cardId] || 0;
+}
+
+function activeCount(player, cardId) {
+  if (cardId === 'venture') return (player?.ventureCards || []).filter(v => !v.closed).length;
+  return Math.max(0, count(player, cardId) - closedCount(player, cardId));
+}
+
+function setClosedCount(player, cardId, n) {
+  if (!player.closedCards) player.closedCards = {};
+  const total = count(player, cardId);
+  const next = Math.max(0, Math.min(total, Number(n || 0)));
+  if (next > 0) player.closedCards[cardId] = next;
+  else delete player.closedCards[cardId];
+}
+
+function closeCards(player, cardId, n = 1) {
+  if (cardId === 'venture') {
+    let closed = 0;
+    for (const v of player.ventureCards || []) {
+      if (closed >= n) break;
+      if (!v.closed) { v.closed = true; closed++; }
+    }
+    syncVentureClosedCount(player);
+    return closed;
+  }
+  const closable = Math.min(activeCount(player, cardId), n);
+  setClosedCount(player, cardId, closedCount(player, cardId) + closable);
+  return closable;
+}
+
+function syncVentureClosedCount(player) {
+  const n = (player.ventureCards || []).filter(v => v.closed).length;
+  setClosedCount(player, 'venture', n);
+}
+
+function completedLandmarkCount(player) {
+  return Object.values(player?.landmarks || {}).filter(Boolean).length;
+}
+
+function isMajorCard(cardId) {
+  return CARD_DEFS[cardId]?.color === 'purple' || CARD_DEFS[cardId]?.kind === 'major';
 }
 
 function has(player, landmarkId) {
@@ -464,7 +556,7 @@ function applyMallBonus(player, cardId, base) {
 function countByIndustry(player, industry) {
   return Object.entries(player.cards || {}).reduce((sum, [cardId, n]) => {
     const card = CARD_DEFS[cardId];
-    return sum + (card?.industry === industry ? n : 0);
+    return sum + (card?.industry === industry ? activeCount(player, cardId) : 0);
   }, 0);
 }
 
@@ -472,8 +564,8 @@ function countRestaurantAndShop(player, industry = null) {
   return Object.entries(player.cards || {}).reduce((sum, [cardId, n]) => {
     const card = CARD_DEFS[cardId];
     if (!card) return sum;
-    if (industry) return sum + (card.industry === industry ? n : 0);
-    return sum + (card.industry === 'restaurant' || card.industry === 'shop' ? n : 0);
+    if (industry) return sum + (card.industry === industry ? activeCount(player, cardId) : 0);
+    return sum + (card.industry === 'restaurant' || card.industry === 'shop' ? activeCount(player, cardId) : 0);
   }, 0);
 }
 
@@ -486,6 +578,174 @@ function reverseOrderFrom(room, rollerIndex) {
   return order;
 }
 
+
+function reopenClosedCardsForTotal(room, total) {
+  const reopened = {};
+  if (!isSharpMode(room)) return reopened;
+  for (const player of room.players || []) {
+    for (const [cardId, card] of Object.entries(getCardDefs(room))) {
+      if (!card?.dice?.includes(total)) continue;
+      const key = `${player.id}:${cardId}`;
+      if (cardId === 'venture') {
+        const targets = (player.ventureCards || []).filter(v => v.closed);
+        if (targets.length) {
+          targets.forEach(v => { v.closed = false; });
+          syncVentureClosedCount(player);
+          reopened[key] = targets.length;
+          const text = `${player.name} の${card.name} ${targets.length}枚が休業から復帰しました。（この出目では効果なし）`;
+          log(room, text);
+          specialEvent(room, 'sharp-reopen', player, text, { cardId, count: targets.length });
+        }
+        continue;
+      }
+      const c = closedCount(player, cardId);
+      if (c > 0) {
+        setClosedCount(player, cardId, 0);
+        reopened[key] = c;
+        const text = `${player.name} の${card.name} ${c}枚が休業から復帰しました。（この出目では効果なし）`;
+        log(room, text);
+        specialEvent(room, 'sharp-reopen', player, text, { cardId, count: c });
+      }
+    }
+  }
+  return reopened;
+}
+
+function effectCount(room, player, cardId) {
+  const reopened = room.reopenedThisRoll?.[`${player.id}:${cardId}`] || 0;
+  return Math.max(0, activeCount(player, cardId) - reopened);
+}
+
+function spendToBank(room, player, amount, label) {
+  const paid = Math.min(player.coins, amount);
+  if (paid > 0) {
+    player.coins -= paid;
+    coinEvent(room, player, -paid, 'payment', label || '支払い');
+  }
+  return paid;
+}
+
+function closeSpecificVenture(player, ventureId) {
+  const v = (player.ventureCards || []).find(item => item.id === ventureId && !item.closed);
+  if (!v) return false;
+  v.closed = true;
+  syncVentureClosedCount(player);
+  return true;
+}
+
+function popSpecificVenture(player, ventureId) {
+  const list = player.ventureCards || [];
+  const idx = list.findIndex(v => v.id === ventureId);
+  if (idx < 0) return null;
+  const [item] = list.splice(idx, 1);
+  syncVentureClosedCount(player);
+  return item;
+}
+
+function addVentureInstance(player, instance = null) {
+  if (!player.ventureCards) player.ventureCards = [];
+  const item = instance || { id: randomUUID(), tokens: 0, closed: false };
+  player.ventureCards.push(item);
+  syncVentureClosedCount(player);
+  return item;
+}
+
+function removeOneCardForTransfer(player, cardId, instanceId = null) {
+  if (count(player, cardId) <= 0) return null;
+  let instance = null;
+  if (cardId === 'venture') {
+    instance = instanceId ? popSpecificVenture(player, instanceId) : popSpecificVenture(player, player.ventureCards?.[0]?.id);
+    if (!instance) return null;
+  }
+  const wasClosed = cardId === 'venture' ? !!instance.closed : closedCount(player, cardId) > 0;
+  player.cards[cardId] -= 1;
+  if (player.cards[cardId] <= 0) delete player.cards[cardId];
+  if (cardId !== 'venture' && wasClosed) setClosedCount(player, cardId, closedCount(player, cardId) - 1);
+  return { cardId, wasClosed, instance };
+}
+
+function addTransferredCard(player, moved) {
+  const { cardId, wasClosed, instance } = moved;
+  player.cards[cardId] = count(player, cardId) + 1;
+  if (cardId === 'venture') addVentureInstance(player, instance || { id: randomUUID(), tokens: 0, closed: wasClosed });
+  else if (wasClosed) setClosedCount(player, cardId, closedCount(player, cardId) + 1);
+}
+
+function transferOneCard(from, to, cardId, instanceId = null) {
+  const moved = removeOneCardForTransfer(from, cardId, instanceId);
+  if (!moved) return null;
+  addTransferredCard(to, moved);
+  return moved;
+}
+
+function movableCardIds(player) {
+  return Object.entries(player.cards || {})
+    .filter(([cardId, n]) => n > 0 && CARD_DEFS[cardId] && !isMajorCard(cardId))
+    .map(([cardId]) => cardId);
+}
+
+function buildSharpChoiceQueue(room, roller, total) {
+  if (!isSharpMode(room)) return [];
+  const queue = [];
+  const addMany = (cardId, fn) => {
+    const c = effectCount(room, roller, cardId);
+    if (!c || !CARD_DEFS[cardId].dice.includes(total)) return;
+    for (let i = 0; i < c; i++) if (fn()) queue.push(cardId);
+  };
+  addMany('renovation', () => Object.entries(roller.landmarks || {}).some(([, done]) => done));
+  addMany('cleaning', () => room.players.some(p => Object.entries(p.cards || {}).some(([id, n]) => n > 0 && !isMajorCard(id) && activeCount(p, id) > 0)));
+  addMany('moving', () => room.players.length > 1 && movableCardIds(roller).length > 0);
+  return queue;
+}
+
+function enterSharpChoice(room, queue) {
+  const roller = getCurrentPlayer(room);
+  room.pendingSharp = { playerId: roller.id, effects: queue, current: queue[0] };
+  room.phase = 'sharpChoice';
+  log(room, `${roller.name} は街コロ#カードの対象を選択します。`);
+}
+
+function finishCurrentSharp(room) {
+  if (!room.pendingSharp) {
+    continueAfterSharpChoices(room);
+    return;
+  }
+  room.pendingSharp.effects.shift();
+  if (room.pendingSharp.effects.length) {
+    room.pendingSharp.current = room.pendingSharp.effects[0];
+    room.phase = 'sharpChoice';
+  } else {
+    room.pendingSharp = null;
+    continueAfterSharpChoices(room);
+  }
+}
+
+function continueAfterSharpChoices(room) {
+  const queue = room.pendingPurpleQueue || [];
+  room.pendingPurpleQueue = null;
+  if (queue.length) {
+    const roller = getCurrentPlayer(room);
+    room.pendingPurple = { playerId: roller.id, effects: queue, current: queue[0] };
+    room.phase = 'purple';
+    log(room, `${roller.name} は紫カードの対象を選択します。`);
+  } else {
+    room.pendingPurple = null;
+    enterBuildPhase(room);
+  }
+}
+
+function completeTurnOrVentureInvest(room) {
+  const player = getCurrentPlayer(room);
+  if (isSharpMode(room) && player && player.coins > 0 && (player.ventureCards || []).some(v => !v.closed)) {
+    room.pendingVentureInvest = { playerId: player.id };
+    room.phase = 'ventureInvest';
+    log(room, `${player.name} はベンチャー企業に1コイン投資できます。`);
+    return;
+  }
+  room.pendingVentureInvest = null;
+  advanceTurn(room);
+}
+
 function resolveRoll(room, diceValues, overrideTotal = null) {
   const rawTotal = diceValues.reduce((a, b) => a + b, 0);
   const total = overrideTotal || rawTotal;
@@ -495,21 +755,26 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
   room.lastRoll = { dice: diceValues, total, rawTotal, playerId: roller.id, playerName: roller.name };
+  room.reopenedThisRoll = reopenClosedCardsForTotal(room, total);
   recordNormalDiceStats(room, room.lastRoll);
   log(room, `${roller.name} が ${diceValues.join(' + ')} = ${rawTotal}${total !== rawTotal ? `（港で ${total}）` : ''} を出しました。`);
 
   // Red cards: payments to other players first, counterclockwise.
   for (const idx of reverseOrderFrom(room, rollerIndex)) {
     const owner = room.players[idx];
-    const redCards = isPlusMode(room) ? ['sushi', 'cafe', 'pizza', 'burger', 'family'] : ['cafe', 'family'];
+    const redCards = ['cafe', 'family', ...(isPlusMode(room) ? ['sushi', 'pizza', 'burger'] : []), ...(isSharpMode(room) ? ['french', 'memberBar'] : [])];
     for (const cardId of redCards) {
-      const c = count(owner, cardId);
+      const c = effectCount(room, owner, cardId);
       if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
       if (cardId === 'sushi' && !has(owner, 'port')) continue;
       let base = 1;
       if (cardId === 'family') base = 2;
       if (cardId === 'sushi') base = 3;
-      const each = applyMallBonus(owner, cardId, base);
+      if (cardId === 'french' && completedLandmarkCount(roller) < 2) continue;
+      if (cardId === 'memberBar' && completedLandmarkCount(roller) < 3) continue;
+      if (cardId === 'french') base = 5;
+      if (cardId === 'memberBar') base = roller.coins;
+      const each = cardId === 'memberBar' ? base : applyMallBonus(owner, cardId, base);
       const paid = stealCoins(room, roller, owner, each * c, CARD_DEFS[cardId].name);
       if (paid > 0) {
         const text = `${owner.name} の${CARD_DEFS[cardId].name}：${roller.name} から ${paid} コイン。`;
@@ -524,11 +789,13 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
 
   // Blue cards: every player's income from bank.
   for (const p of room.players) {
-    const incomes = isPlusMode(room)
-      ? [['wheat', 1], ['ranch', 1], ['flower', 1], ['forest', 1], ['sauryBoat', 3], ['mine', 5], ['apple', 3], ['tunaBoat', 0]]
-      : [['wheat', 1], ['ranch', 1], ['forest', 1], ['mine', 5], ['apple', 3]];
+    const incomes = [
+      ['wheat', 1], ['ranch', 1], ['forest', 1], ['mine', 5], ['apple', 3],
+      ...(isPlusMode(room) ? [['flower', 1], ['sauryBoat', 3], ['tunaBoat', 0]] : []),
+      ...(isSharpMode(room) ? [['corn', 1], ['grape', 3]] : [])
+    ];
     for (const [cardId, base] of incomes) {
-      const c = count(p, cardId);
+      const c = effectCount(room, p, cardId);
       if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
       if ((cardId === 'sauryBoat' || cardId === 'tunaBoat') && !has(p, 'port')) continue;
       if (cardId === 'tunaBoat') {
@@ -568,9 +835,9 @@ function continueRollAfterTuna(room, diceValues, total) {
   const rollerIndex = room.currentPlayerIndex;
   const roller = room.players[rollerIndex];
   // Green cards: roller only.
-  const greenChecks = isPlusMode(room) ? ['bakery', 'convenience', 'flowerShop', 'cheese', 'furniture', 'market', 'foodWarehouse'] : ['bakery', 'convenience', 'cheese', 'furniture', 'market'];
+  const greenChecks = ['bakery', 'convenience', 'cheese', 'furniture', 'market', ...(isPlusMode(room) ? ['flowerShop', 'foodWarehouse'] : []), ...(isSharpMode(room) ? ['generalStore', 'loan', 'winery', 'venture', 'drinkFactory', 'park'] : [])];
   for (const cardId of greenChecks) {
-    const c = count(roller, cardId);
+    const c = effectCount(room, roller, cardId);
     if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
     let amount = 0;
     if (cardId === 'bakery') amount = applyMallBonus(roller, cardId, 1) * c;
@@ -580,6 +847,48 @@ function continueRollAfterTuna(room, diceValues, total) {
     if (cardId === 'furniture') amount = 3 * (count(roller, 'forest') + count(roller, 'mine')) * c;
     if (cardId === 'market') amount = 2 * (count(roller, 'wheat') + count(roller, 'apple')) * c;
     if (cardId === 'foodWarehouse') amount = 2 * countRestaurantAndShop(roller, 'restaurant') * c;
+    if (cardId === 'generalStore' && completedLandmarkCount(roller) <= 1) amount = 2 * c;
+    if (cardId === 'loan') {
+      const paid = spendToBank(room, roller, 2 * c, CARD_DEFS[cardId].name);
+      if (paid > 0) {
+        const text = `${roller.name} の${CARD_DEFS[cardId].name}：銀行に ${paid} コイン支払いました。`;
+        log(room, text);
+        specialEvent(room, 'effect-payment', roller, text, { cardId, amount: -paid });
+      }
+      continue;
+    }
+    if (cardId === 'winery') {
+      amount = 6 * activeCount(roller, 'grape') * c;
+      const closed = closeCards(roller, 'winery', c);
+      if (closed > 0) log(room, `${roller.name} のワイナリー ${closed}枚が休業しました。`);
+    }
+    if (cardId === 'venture') {
+      for (const venture of (roller.ventureCards || []).filter(v => !v.closed && (v.tokens || 0) > 0)) {
+        for (const other of room.players) {
+          if (other.id === roller.id) continue;
+          const paid = stealCoins(room, other, roller, venture.tokens, CARD_DEFS[cardId].name);
+          if (paid > 0) {
+            const text = `${roller.name} のベンチャー企業（投資${venture.tokens}）：${other.name} から ${paid} コイン。`;
+            log(room, text);
+            specialEvent(room, 'effect-steal', roller, text, { cardId, amount: paid, targetId: other.id, ventureId: venture.id });
+          }
+        }
+      }
+      continue;
+    }
+    if (cardId === 'drinkFactory') {
+      const restaurants = room.players.reduce((sum, p) => sum + countRestaurantAndShop(p, 'restaurant'), 0);
+      amount = restaurants * c;
+    }
+    if (cardId === 'park') {
+      const totalCoins = room.players.reduce((sum, p) => sum + p.coins, 0);
+      const each = Math.ceil(totalCoins / room.players.length);
+      for (const p of room.players) { p.coins = each; }
+      const text = `${roller.name} の公園：全員のコインを集め、銀行補充込みで全員 ${each} コインにしました。`;
+      log(room, text);
+      specialEvent(room, 'effect-income', roller, text, { cardId, amount: 0 });
+      continue;
+    }
     if (amount > 0) {
       bankIncome(room, roller, amount, CARD_DEFS[cardId].name);
       const text = `${roller.name} の${CARD_DEFS[cardId].name}：銀行から ${amount} コイン。`;
@@ -590,11 +899,11 @@ function continueRollAfterTuna(room, diceValues, total) {
 
   // Purple cards: roller only. Stadium is automatic; TV and Business Center need a player choice.
   const purpleQueue = [];
-  if (isPlusMode(room) && total === 7 && count(roller, 'publisher')) {
+  if (isPlusMode(room) && total === 7 && effectCount(room, roller, 'publisher')) {
     for (let i = 0; i < room.players.length; i++) {
       if (i === rollerIndex) continue;
       const other = room.players[i];
-      const due = countRestaurantAndShop(other) * count(roller, 'publisher');
+      const due = countRestaurantAndShop(other) * effectCount(room, roller, 'publisher');
       const paid = stealCoins(room, other, roller, due, '出版社');
       if (paid > 0) {
         const text = `${roller.name} の出版社：${other.name} から ${paid} コイン。`;
@@ -603,7 +912,7 @@ function continueRollAfterTuna(room, diceValues, total) {
       }
     }
   }
-  if (isPlusMode(room) && (total === 8 || total === 9) && count(roller, 'taxOffice')) {
+  if (isPlusMode(room) && (total === 8 || total === 9) && effectCount(room, roller, 'taxOffice')) {
     for (let i = 0; i < room.players.length; i++) {
       if (i === rollerIndex) continue;
       const other = room.players[i];
@@ -617,7 +926,7 @@ function continueRollAfterTuna(room, diceValues, total) {
     }
   }
   if (total === 6) {
-    if (count(roller, 'stadium')) {
+    if (effectCount(room, roller, 'stadium')) {
       for (let i = 0; i < room.players.length; i++) {
         if (i === rollerIndex) continue;
         const other = room.players[i];
@@ -629,8 +938,8 @@ function continueRollAfterTuna(room, diceValues, total) {
         }
       }
     }
-    if (count(roller, 'tv') && room.players.some((_, i) => i !== rollerIndex)) purpleQueue.push('tv');
-    if (count(roller, 'business') && canUseBusinessCenter(room, roller)) purpleQueue.push('business');
+    if (effectCount(room, roller, 'tv') && room.players.some((_, i) => i !== rollerIndex)) purpleQueue.push('tv');
+    if (effectCount(room, roller, 'business') && canUseBusinessCenter(room, roller)) purpleQueue.push('business');
   }
 
   const amusementTriggered =
@@ -647,7 +956,11 @@ function continueRollAfterTuna(room, diceValues, total) {
       reason: 'two-dice-double'
     });
   }
-  if (purpleQueue.length) {
+  const sharpQueue = buildSharpChoiceQueue(room, roller, total);
+  if (sharpQueue.length) {
+    room.pendingPurpleQueue = purpleQueue;
+    enterSharpChoice(room, sharpQueue);
+  } else if (purpleQueue.length) {
     room.pendingPurple = { playerId: roller.id, effects: purpleQueue, current: purpleQueue[0] };
     room.phase = 'purple';
     log(room, `${roller.name} は紫カードの対象を選択します。`);
@@ -716,6 +1029,10 @@ function advanceTurn(room) {
   room.turnSummary = [];
   room.pendingTuna = null;
   room.pendingPurple = null;
+  room.pendingSharp = null;
+  room.pendingPurpleQueue = null;
+  room.pendingVentureInvest = null;
+  room.reopenedThisRoll = null;
   room.rolling = null;
   room.canReroll = true;
 }
@@ -803,7 +1120,7 @@ io.on('connection', (socket) => {
     let code = roomCode();
     while (rooms.has(code)) code = roomCode();
     const newPlayerId = randomUUID();
-    const selectedDeckMode = deckMode === 'plus' ? 'plus' : 'base';
+    const selectedDeckMode = normalizeDeckMode(deckMode);
     const player = makePlayer(newPlayerId, name, socket.id, selectedDeckMode);
     const room = {
       code,
@@ -820,6 +1137,8 @@ io.on('connection', (socket) => {
       pendingExtraTurn: false,
       buildSubsidyGiven: false,
       pendingPurple: null,
+      pendingSharp: null,
+      pendingVentureInvest: null,
       pendingRoll: null,
       rolling: null,
       winnerId: null,
@@ -930,6 +1249,9 @@ io.on('connection', (socket) => {
     room.pendingExtraTurn = false;
     room.buildSubsidyGiven = false;
     room.pendingPurple = null;
+    room.pendingSharp = null;
+    room.pendingPurpleQueue = null;
+    room.pendingVentureInvest = null;
     room.pendingRoll = null;
     room.pendingTuna = null;
     room.tunaRollResult = null;
@@ -1087,6 +1409,97 @@ io.on('connection', (socket) => {
   });
 
 
+
+  socket.on('sharpRenovation', ({ landmarkId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'sharpChoice' || room.pendingSharp?.current !== 'renovation') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId || room.pendingSharp.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const landmark = getLandmarkDefs(room, false)[landmarkId];
+    if (!landmark || !player.landmarks[landmarkId]) return cb?.({ ok: false, message: '完成済みランドマークを選んでください。' });
+    player.landmarks[landmarkId] = false;
+    bankIncome(room, player, 8, '改装屋');
+    const text = `${player.name} の改装屋：${landmark.name}を未完成に戻し、銀行から8コイン。`;
+    log(room, text);
+    specialEvent(room, 'effect-income', player, text, { cardId: 'renovation', landmarkId, amount: 8 });
+    finishCurrentSharp(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('sharpCleaning', ({ cardId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'sharpChoice' || room.pendingSharp?.current !== 'cleaning') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId || room.pendingSharp.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const card = getCardDefs(room)[cardId];
+    if (!card || isMajorCard(cardId)) return cb?.({ ok: false, message: '大施設以外の施設を選んでください。' });
+    let closed = 0;
+    for (const p of room.players) closed += closeCards(p, cardId, activeCount(p, cardId));
+    if (closed > 0) {
+      bankIncome(room, player, closed, '清掃業');
+      const text = `${player.name} の清掃業：全員の${card.name}を合計${closed}枚休業にし、${closed}コイン。`;
+      log(room, text);
+      specialEvent(room, 'effect-income', player, text, { cardId: 'cleaning', targetCardId: cardId, amount: closed, closed });
+    } else {
+      log(room, `${player.name} の清掃業：${card.name}を選びましたが、新たに休業した施設はありません。`);
+    }
+    finishCurrentSharp(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('sharpMoving', ({ cardId, targetId, instanceId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'sharpChoice' || room.pendingSharp?.current !== 'moving') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId || room.pendingSharp.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const target = room.players.find(p => p.id === targetId && p.id !== player.id);
+    const card = getCardDefs(room)[cardId];
+    if (!target) return cb?.({ ok: false, message: '渡す相手を選んでください。' });
+    if (!card || isMajorCard(cardId) || count(player, cardId) <= 0) return cb?.({ ok: false, message: '大施設以外の自分の施設を選んでください。' });
+    const moved = transferOneCard(player, target, cardId, instanceId || null);
+    if (!moved) return cb?.({ ok: false, message: 'その施設を渡せません。' });
+    bankIncome(room, player, 4, '引っ越し屋');
+    const extra = cardId === 'venture' && moved.instance ? `（投資${moved.instance.tokens || 0}コイン付き）` : '';
+    const text = `${player.name} の引っ越し屋：${card.name}${extra}を ${target.name} に渡し、銀行から4コイン。`;
+    log(room, text);
+    specialEvent(room, 'effect-income', player, text, { cardId: 'moving', movedCardId: cardId, targetId: target.id, amount: 4 });
+    finishCurrentSharp(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('ventureInvest', ({ ventureId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'ventureInvest' || !room.pendingVentureInvest) return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId || room.pendingVentureInvest.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const venture = (player.ventureCards || []).find(v => v.id === ventureId && !v.closed);
+    if (!venture) return cb?.({ ok: false, message: '投資するベンチャー企業を選んでください。' });
+    if (player.coins <= 0) return cb?.({ ok: false, message: '投資するコインがありません。' });
+    player.coins -= 1;
+    venture.tokens = Number(venture.tokens || 0) + 1;
+    coinEvent(room, player, -1, 'payment', 'ベンチャー企業投資');
+    log(room, `${player.name} はベンチャー企業に1コイン投資しました。（このカード上: ${venture.tokens}）`);
+    room.pendingVentureInvest = null;
+    advanceTurn(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
+  socket.on('skipVentureInvest', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing' || room.phase !== 'ventureInvest' || !room.pendingVentureInvest) return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId || room.pendingVentureInvest.playerId !== player.id) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    log(room, `${player.name} はベンチャー企業に投資しませんでした。`);
+    room.pendingVentureInvest = null;
+    advanceTurn(room);
+    cb?.({ ok: true });
+    emitRoom(room);
+  });
+
   socket.on('purpleTv', ({ targetId }, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'tv') return;
@@ -1116,12 +1529,11 @@ io.on('connection', (socket) => {
     if (count(player, myCardId) <= 0 || count(target, targetCardId) <= 0) return cb?.({ ok: false, message: '選んだ施設がありません。' });
     if (myCardId === targetCardId) return cb?.({ ok: false, message: '同じ施設同士は交換できません。' });
 
-    player.cards[myCardId] -= 1;
-    if (player.cards[myCardId] <= 0) delete player.cards[myCardId];
-    target.cards[targetCardId] -= 1;
-    if (target.cards[targetCardId] <= 0) delete target.cards[targetCardId];
-    player.cards[targetCardId] = count(player, targetCardId) + 1;
-    target.cards[myCardId] = count(target, myCardId) + 1;
+    const movedFromPlayer = removeOneCardForTransfer(player, myCardId);
+    const movedFromTarget = removeOneCardForTransfer(target, targetCardId);
+    if (!movedFromPlayer || !movedFromTarget) return cb?.({ ok: false, message: '交換できませんでした。' });
+    addTransferredCard(player, movedFromTarget);
+    addTransferredCard(target, movedFromPlayer);
     log(room, `${player.name} のビジネスセンター：${player.name} の${myCard.name}と ${target.name} の${targetCard.name}を交換しました。`);
     finishCurrentPurple(room);
     cb?.({ ok: true });
@@ -1152,6 +1564,11 @@ io.on('connection', (socket) => {
     if (card.color === 'purple' && count(player, cardId) >= 1) return cb?.({ ok: false, message: '紫カードは各種類1件までです。' });
     player.coins -= card.cost;
     player.cards[cardId] = count(player, cardId) + 1;
+    if (cardId === 'venture') addVentureInstance(player);
+    if (cardId === 'loan') {
+      bankIncome(room, player, 5, '貸金業');
+      log(room, `${player.name} は貸金業の建設時効果で銀行から5コインを得ました。`);
+    }
     room.market[cardId] -= 1;
     log(room, `${player.name} が ${card.name} を建設しました。場の残り ${room.market[cardId]} 枚。`);
     if (room.market[cardId] <= 0) {
@@ -1171,7 +1588,7 @@ io.on('connection', (socket) => {
         specialEvent(room, 'market-empty', null, text, { marketSize: after, deckCount: room.deck.length });
       }
     }
-    advanceTurn(room);
+    completeTurnOrVentureInvest(room);
     cb?.({ ok: true });
     emitRoom(room);
   });
@@ -1189,7 +1606,7 @@ io.on('connection', (socket) => {
     player.landmarks[landmarkId] = true;
     log(room, `${player.name} が ${landmark.name} を完成させました。`);
     checkWinner(room, player);
-    if (room.status !== 'finished') advanceTurn(room);
+    if (room.status !== 'finished') completeTurnOrVentureInvest(room);
     cb?.({ ok: true });
     emitRoom(room);
   });
@@ -1206,7 +1623,7 @@ io.on('connection', (socket) => {
       specialEvent(room, 'effect-income', player, text, { landmarkId: 'airport', amount: 10 });
     }
     log(room, `${player.name} は建設せずに手番を終えました。`);
-    advanceTurn(room);
+    completeTurnOrVentureInvest(room);
     cb?.({ ok: true });
     emitRoom(room);
   });
@@ -1231,6 +1648,9 @@ io.on('connection', (socket) => {
     room.rolling = null;
     room.pendingRoll = null;
     room.pendingPurple = null;
+    room.pendingSharp = null;
+    room.pendingPurpleQueue = null;
+    room.pendingVentureInvest = null;
     room.pendingExtraTurn = false;
     room.buildSubsidyGiven = false;
     room.currentPlayerIndex = (room.currentPlayerIndex + 1) % room.players.length;

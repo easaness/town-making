@@ -119,7 +119,7 @@ socket.on('state', (next) => {
   }
   render();
   if (diceJustChanged) playSound('result');
-  if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); }, 900);
+  if (diceJustChanged) setTimeout(() => { diceJustChanged = false; renderActions(); renderStatus(); renderRollNotice(); }, 900);
 });
 
 
@@ -191,7 +191,7 @@ function syncSpecialEvents(next) {
   setTimeout(() => {
     const t = Date.now();
     activeSpecialFx = activeSpecialFx.filter(fx => fx.expiresAt > t);
-    if (state) { renderStatus(); renderRecentNotice(); }
+    if (state) { renderStatus(); renderRollNotice(); renderRecentNotice(); }
   }, 3700);
 }
 
@@ -366,6 +366,12 @@ function currentTunaPending() {
   return pending.queue[pending.currentIndex || 0] || null;
 }
 
+function tunaTargetNames() {
+  const queue = state?.pendingTuna?.queue;
+  if (!Array.isArray(queue) || !queue.length) return '';
+  return queue.map(t => t?.playerName).filter(Boolean).join('、');
+}
+
 function startLocalRoll(count, key, send) {
   startRollingPreview(count);
   renderActions();
@@ -524,7 +530,7 @@ function phaseGuideText() {
     if (state.phase === 'portChoice') return `${cp?.name || 'プレイヤー'} が港効果を使うか選んでいます。`;
     if (state.phase === 'tunaRoll') {
       const tuna = currentTunaPending();
-      return `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} が ${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振るのを待っています。`;
+      return `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} が ${tunaTargetNames() || tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振るのを待っています。`;
     }
     if (state.phase === 'sharpChoice') return `${cp?.name || 'プレイヤー'} が街コロ#カードの対象を選んでいます。`;
     if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
@@ -537,7 +543,7 @@ function phaseGuideText() {
   if (state.phase === 'portChoice') return '港効果で出目に+2するか選んでください。';
   if (state.phase === 'tunaRoll') {
     const tuna = currentTunaPending();
-    return state.pendingTuna?.rollerId === myId ? `${tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振ってください。` : `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} のマグロ漁船追加ダイス待ちです。`;
+    return state.pendingTuna?.rollerId === myId ? `${tunaTargetNames() || tuna?.playerName || 'プレイヤー'} のマグロ漁船追加ダイスを振ってください。` : `${state.pendingTuna?.rollerName || '出目を出したプレイヤー'} のマグロ漁船追加ダイス待ちです。`;
   }
   if (state.phase === 'sharpChoice') return '街コロ#カードの対象を選んでください。';
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
@@ -753,6 +759,7 @@ function render() {
   $('roomCodeText').textContent = `Room ${state.code}`;
 
   renderStatus();
+  renderRollNotice();
   renderPlayers();
   renderActions();
   renderBuilds();
@@ -927,11 +934,9 @@ function renderTurnMoneySummary() {
 function renderTunaRollResult() {
   const roll = state?.tunaRollResult;
   if (!roll?.dice?.length) return '';
-  const faces = roll.dice.map((value, i) => diceFace(value, `settled d${i + 1}`)).join('');
   return `<div class="turn-summary-tuna-roll">
-    <div class="turn-summary-tuna-head"><span>マグロ漁船 追加ダイス</span><strong>合計 ${escapeHtml(rollExpression(roll))}</strong></div>
-    <div class="dice-row result-dice-row">${faces}</div>
-    <p>この追加ダイスではカード効果・港+2・遊園地は発動しません。</p>
+    <div class="turn-summary-tuna-head"><span>マグロ漁船 追加ダイス</span><strong>${escapeHtml(rollExpression(roll))}</strong></div>
+    <p>追加ダイスの目は右上のダイス表示で確認できます。この追加ダイスではカード効果・港+2・遊園地は発動しません。</p>
   </div>`;
 }
 
@@ -966,7 +971,7 @@ function renderRecentNotice() {
   el.innerHTML = `
     <div class="turn-summary-head">
       <strong>このターンの処理</strong>
-      <span>${escapeHtml(state.currentPlayer?.name || '')}</span>
+      <span>${escapeHtml(currentPlayer()?.name || '')}</span>
     </div>
     ${rollLine}
     ${body}
@@ -1128,7 +1133,9 @@ function stickyHudActionHtml() {
     return '<span class="hud-wait">街コロ#カードを選択中</span>';
   }
   if (state.phase === 'ventureInvest') {
-    return `<button onclick="submitVentureInvest()">投資する</button><button class="secondary" onclick="emitWithMessage('skipVentureInvest')">投資しない</button>`;
+    const m = me();
+    const options = ventureInvestOptions(m);
+    return `<select id="ventureInvestCardHud" aria-label="投資先ベンチャー企業">${options}</select><button onclick="submitVentureInvestFromHud()">投資する</button><button class="secondary" onclick="emitWithMessage('skipVentureInvest')">投資しない</button>`;
   }
   if (state.phase === 'purple') {
     return '<span class="hud-wait">紫カードを選択中</span>';
@@ -1224,11 +1231,22 @@ function renderPlayers() {
 
 function nonPurpleOwnedOptions(player, selected = '') {
   if (!player) return '';
-  return Object.entries(player.cards || {})
+  const rows = [];
+  const entries = Object.entries(player.cards || {})
     .filter(([id, n]) => n > 0 && state.cards[id] && state.cards[id].color !== 'purple')
-    .sort(([a], [b]) => state.cards[a].name.localeCompare(state.cards[b].name, 'ja'))
-    .map(([id, n]) => `<option value="${id}" ${id === selected ? 'selected' : ''}>${state.cards[id].name}×${n}</option>`)
-    .join('');
+    .sort(([a], [b]) => state.cards[a].name.localeCompare(state.cards[b].name, 'ja'));
+  for (const [id, n] of entries) {
+    const card = state.cards[id];
+    if (id === 'venture' && Array.isArray(player.ventureCards) && player.ventureCards.length) {
+      player.ventureCards.forEach((v, i) => {
+        const value = `venture:${v.id}`;
+        rows.push(`<option value="${value}" ${value === selected ? 'selected' : ''}>${escapeHtml(card.name)} #${i + 1}（投資${v.tokens || 0}🪙${v.closed ? '・休業' : ''}）</option>`);
+      });
+    } else {
+      rows.push(`<option value="${id}" ${id === selected ? 'selected' : ''}>${escapeHtml(card.name)}×${n}</option>`);
+    }
+  }
+  return rows.join('');
 }
 
 
@@ -1289,7 +1307,11 @@ function submitSharpMoving() {
 }
 
 function submitVentureInvest() {
-  emitWithMessage('ventureInvest', { ventureId: $('ventureInvestCard')?.value });
+  emitWithMessage('ventureInvest', { ventureId: $('ventureInvestCard')?.value || $('ventureInvestCardHud')?.value });
+}
+
+function submitVentureInvestFromHud() {
+  emitWithMessage('ventureInvest', { ventureId: $('ventureInvestCardHud')?.value || $('ventureInvestCard')?.value });
 }
 
 function sharpChoiceHtml(effect) {
@@ -1335,11 +1357,22 @@ function updateBusinessTargetCards() {
   if (cardSelect) cardSelect.innerHTML = nonPurpleOwnedOptions(target);
 }
 
+function parseCardSelection(raw) {
+  const value = raw || '';
+  if (value.startsWith('venture:')) return { cardId: 'venture', instanceId: value.slice('venture:'.length) };
+  return { cardId: value, instanceId: null };
+}
+
 function submitBusiness() {
-  const myCardId = $('businessMyCard')?.value;
-  const targetId = $('businessTarget')?.value;
-  const targetCardId = $('businessTargetCard')?.value;
-  emitWithMessage('purpleBusiness', { myCardId, targetId, targetCardId });
+  const my = parseCardSelection($('businessMyCard')?.value);
+  const target = parseCardSelection($('businessTargetCard')?.value);
+  emitWithMessage('purpleBusiness', {
+    myCardId: my.cardId,
+    myInstanceId: my.instanceId,
+    targetId: $('businessTarget')?.value,
+    targetCardId: target.cardId,
+    targetInstanceId: target.instanceId
+  });
 }
 
 function renderActions() {

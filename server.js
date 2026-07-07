@@ -798,6 +798,7 @@ function resolveRoll(room, diceValues, overrideTotal = null) {
       const c = effectCount(room, p, cardId);
       if (!c || !CARD_DEFS[cardId].dice.includes(total)) continue;
       if ((cardId === 'sauryBoat' || cardId === 'tunaBoat') && !has(p, 'port')) continue;
+      if (cardId === 'corn' && completedLandmarkCount(p) > 1) continue;
       if (cardId === 'tunaBoat') {
         tunaQueue.push({ playerId: p.id, playerName: p.name, count: c });
         continue;
@@ -1515,7 +1516,7 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('purpleBusiness', ({ myCardId, targetId, targetCardId }, cb) => {
+  socket.on('purpleBusiness', ({ myCardId, myInstanceId, targetId, targetCardId, targetInstanceId }, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'business') return;
     const player = getCurrentPlayer(room);
@@ -1527,14 +1528,22 @@ io.on('connection', (socket) => {
     if (!myCard || !targetCard) return cb?.({ ok: false, message: '交換カードを選んでください。' });
     if (myCard.color === 'purple' || targetCard.color === 'purple') return cb?.({ ok: false, message: 'ビジネスセンターでは紫カード以外の施設を選んでください。' });
     if (count(player, myCardId) <= 0 || count(target, targetCardId) <= 0) return cb?.({ ok: false, message: '選んだ施設がありません。' });
+    if (myCardId === 'venture' && !player.ventureCards?.some(v => v.id === myInstanceId)) return cb?.({ ok: false, message: '自分のベンチャー企業を1枚選んでください。' });
+    if (targetCardId === 'venture' && !target.ventureCards?.some(v => v.id === targetInstanceId)) return cb?.({ ok: false, message: '相手のベンチャー企業を1枚選んでください。' });
     if (myCardId === targetCardId) return cb?.({ ok: false, message: '同じ施設同士は交換できません。' });
 
-    const movedFromPlayer = removeOneCardForTransfer(player, myCardId);
-    const movedFromTarget = removeOneCardForTransfer(target, targetCardId);
-    if (!movedFromPlayer || !movedFromTarget) return cb?.({ ok: false, message: '交換できませんでした。' });
+    const movedFromPlayer = removeOneCardForTransfer(player, myCardId, myInstanceId);
+    const movedFromTarget = removeOneCardForTransfer(target, targetCardId, targetInstanceId);
+    if (!movedFromPlayer || !movedFromTarget) {
+      if (movedFromPlayer) addTransferredCard(player, movedFromPlayer);
+      if (movedFromTarget) addTransferredCard(target, movedFromTarget);
+      return cb?.({ ok: false, message: '交換できませんでした。' });
+    }
     addTransferredCard(player, movedFromTarget);
     addTransferredCard(target, movedFromPlayer);
-    log(room, `${player.name} のビジネスセンター：${player.name} の${myCard.name}と ${target.name} の${targetCard.name}を交換しました。`);
+    const myExtra = movedFromPlayer.instance ? `（投資${movedFromPlayer.instance.tokens || 0}コイン付き）` : '';
+    const targetExtra = movedFromTarget.instance ? `（投資${movedFromTarget.instance.tokens || 0}コイン付き）` : '';
+    log(room, `${player.name} のビジネスセンター：${player.name} の${myCard.name}${myExtra}と ${target.name} の${targetCard.name}${targetExtra}を交換しました。`);
     finishCurrentPurple(room);
     cb?.({ ok: true });
     emitRoom(room);

@@ -2800,7 +2800,7 @@ button:disabled {
 }
 
 
-/* Tuna boat extra dice result: shown like dice, but clearly marked as non-triggering extra dice. */
+/* Tuna boat extra dice result: text-only here; dice faces are shown in the main roll display. */
 .turn-summary-tuna-roll {
   margin: 10px 0;
   padding: 10px 12px;
@@ -2816,17 +2816,6 @@ button:disabled {
   margin-bottom: 8px;
   color: #7c2d12;
   font-weight: 900;
-}
-.turn-summary-tuna-roll .dice-row {
-  display: flex !important;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 6px;
-}
-.turn-summary-tuna-roll .dice-face {
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
 }
 .turn-summary-tuna-roll p {
   margin: 0;

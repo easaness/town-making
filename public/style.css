@@ -3015,3 +3015,113 @@ button:disabled {
   margin-top: 6px;
   margin-bottom: 10px;
 }
+
+
+/* Rematch deck selector */
+.rematch-deck-picker {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+  padding: 14px;
+  border: 1px solid rgba(228, 123, 55, .24);
+  border-radius: 18px;
+  background: linear-gradient(135deg, #fffaf2, #fff);
+}
+.rematch-deck-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.rematch-deck-head strong {
+  color: #1f2933;
+  font-size: 1rem;
+}
+.rematch-deck-head span {
+  color: #667085;
+  font-size: .82rem;
+  font-weight: 800;
+}
+.rematch-deck-options {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+.rematch-deck-option {
+  position: relative;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  grid-template-areas:
+    "icon name"
+    "icon note";
+  align-items: center;
+  gap: 1px 8px;
+  min-width: 0;
+  padding: 10px;
+  border: 2px solid #e4e7ec;
+  border-radius: 14px;
+  background: #fff;
+  cursor: pointer;
+  transition: border-color .15s ease, box-shadow .15s ease, transform .15s ease;
+}
+.rematch-deck-option:hover {
+  transform: translateY(-1px);
+  border-color: rgba(228, 123, 55, .48);
+}
+.rematch-deck-option input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.rematch-deck-option:has(input:checked) {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 2px rgba(228, 123, 55, .12), 0 8px 16px rgba(228, 123, 55, .12);
+  background: #fff8ee;
+}
+.rematch-deck-icon {
+  grid-area: icon;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 11px;
+  background: #f2f4f7;
+  font-weight: 1000;
+}
+.rematch-deck-name {
+  grid-area: name;
+  overflow: hidden;
+  color: #1f2933;
+  font-size: .9rem;
+  font-weight: 1000;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.rematch-deck-option small {
+  grid-area: note;
+  color: #667085;
+  font-size: .72rem;
+}
+.rematch-actions {
+  margin-top: 0;
+}
+.rematch-actions button {
+  width: 100%;
+}
+.rematch-waiting {
+  display: grid;
+  gap: 4px;
+  margin: 16px 0;
+  padding: 14px;
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #e4e7ec;
+}
+.rematch-waiting span {
+  color: #667085;
+  font-size: .85rem;
+}
+@media (max-width: 720px) {
+  .rematch-deck-options { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}

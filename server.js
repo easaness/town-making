@@ -79,8 +79,14 @@ const OFFICE_DISPLAY = {
 
 const LANDMARKS = { ...BASE_LANDMARKS, ...PLUS_LANDMARKS };
 
+const DECK_MODE_LABELS = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り' };
+
 function normalizeDeckMode(mode) {
   return ['base', 'plus', 'sharp', 'all'].includes(mode) ? mode : 'base';
+}
+
+function deckModeLabel(mode) {
+  return DECK_MODE_LABELS[normalizeDeckMode(mode)];
 }
 
 function isPlusMode(roomOrMode) {
@@ -1241,6 +1247,8 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
     if (room.players.length < 1) return cb?.({ ok: false, message: '1人以上で開始してください。' });
+    // 毎ゲーム開始時にプレイヤー順をシャッフルし、先手もランダムにする。
+    room.players = shuffle(room.players);
     room.deck = makeDeck(room.deckMode);
     room.market = {};
     fillMarket(room);
@@ -1262,6 +1270,7 @@ io.on('connection', (socket) => {
     room.specialEvents = [];
     room.turnSummary = [];
     room.diceStats = createDiceStats();
+    log(room, `手番順をシャッフルしました：${room.players.map(player => player.name).join(' → ')}`);
     log(room, `ゲームを開始しました。山札から場を ${marketSize(room)} 種類まで作りました。山札残り ${room.deck.length} 枚。`);
     cb?.({ ok: true });
     emitRoom(room);
@@ -1543,7 +1552,7 @@ io.on('connection', (socket) => {
     addTransferredCard(target, movedFromPlayer);
     const myExtra = movedFromPlayer.instance ? `（投資${movedFromPlayer.instance.tokens || 0}コイン付き）` : '';
     const targetExtra = movedFromTarget.instance ? `（投資${movedFromTarget.instance.tokens || 0}コイン付き）` : '';
-    log(room, `${player.name} のビジネスセンター：${player.name} の${myCard.name}${myExtra}と ${target.name} の${targetCard.name}${targetExtra}を交換しました。`);
+    log(room, `${player.name} のビジネスセンター：${player.name} は ${myCard.name}${myExtra} を ${target.name} に渡し、${target.name} から ${targetCard.name}${targetExtra} を受け取りました。`);
     finishCurrentPurple(room);
     cb?.({ ok: true });
     emitRoom(room);
@@ -1637,13 +1646,15 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
-  socket.on('resetRoom', (_payload, cb) => {
+  socket.on('resetRoom', (payload = {}, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room) return;
     if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ再戦できます。' });
+    const selectedDeckMode = normalizeDeckMode(payload.deckMode || room.deckMode);
+    room.deckMode = selectedDeckMode;
     resetRoomToWaiting(room);
-    log(room, '同じメンバーで再戦準備に戻しました。');
-    cb?.({ ok: true });
+    log(room, `同じメンバーで再戦準備に戻しました。デッキは ${deckModeLabel(selectedDeckMode)} です。`);
+    cb?.({ ok: true, deckMode: selectedDeckMode });
     emitRoom(room);
   });
 

@@ -24,6 +24,32 @@ const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
 const deckModeText = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り' };
 function deckLabel(mode) { return deckModeText[mode] || deckModeText.base; }
+
+function rematchDeckOptionsHtml() {
+  const options = [
+    { value: 'base', icon: '🏙️', title: '街コロ', note: '基本' },
+    { value: 'plus', icon: '⚓', title: '街コロ＋', note: '拡張' },
+    { value: 'sharp', icon: '#', title: '街コロ#', note: '休業' },
+    { value: 'all', icon: '✨', title: '全部入り', note: '全拡張' }
+  ];
+  const current = state?.deckMode || 'base';
+  return `
+    <div class="rematch-deck-picker">
+      <div class="rematch-deck-head">
+        <strong>再戦するデッキを選択</strong>
+        <span>現在: ${escapeHtml(deckLabel(current))}</span>
+      </div>
+      <div class="rematch-deck-options">
+        ${options.map(option => `
+          <label class="rematch-deck-option">
+            <input type="radio" name="rematchDeckMode" value="${option.value}" ${option.value === current ? 'checked' : ''}>
+            <span class="rematch-deck-icon">${option.icon}</span>
+            <span class="rematch-deck-name">${option.title}</span>
+            <small>${option.note}</small>
+          </label>`).join('')}
+      </div>
+    </div>`;
+}
 function isSharpDeck() { return state?.deckMode === 'sharp' || state?.deckMode === 'all'; }
 
 const initialRoomFromUrl = new URLSearchParams(location.search).get('room');
@@ -313,6 +339,11 @@ function setRoomUrl(code) {
   history.replaceState(null, '', url);
 }
 
+function resetRoomWithSelectedDeck() {
+  const deckMode = document.querySelector('input[name="rematchDeckMode"]:checked')?.value || state?.deckMode || 'base';
+  emitWithMessage('resetRoom', { deckMode });
+}
+
 function createFreshRoom() {
   const name = $('nameInput')?.value.trim() || localStorage.getItem('machikoroPlayerName') || 'ゲスト';
   const deckMode = document.querySelector('input[name="deckMode"]:checked')?.value || 'base';
@@ -524,7 +555,7 @@ function phaseGuideText() {
   const mine = isMyTurn();
   if (!me() && state.status === 'playing') return `${cp?.name || 'プレイヤー'} の番です。観戦中です。`;
   if (state.status === 'waiting') return state.hostId === myId ? 'ゲーム開始を押してください。友人を待つ場合はルームコードか招待リンクを共有してください。' : 'ホストがゲームを開始するまで待機してください。';
-  if (state.status === 'finished') return state.winnerId === myId ? 'あなたの勝利です。ホストは同じメンバーでもう一度遊べます。' : 'ゲーム終了です。ホストがもう一度遊ぶを押すと同じ部屋で再戦できます。';
+  if (state.status === 'finished') return state.winnerId === myId ? 'あなたの勝利です。ホストはデッキを選んで同じメンバーで再戦できます。' : 'ゲーム終了です。ホストが再戦用のデッキを選ぶまでお待ちください。';
   if (state.rolling) return `${state.rolling.playerName || 'プレイヤー'} がダイスを振っています。結果を待ってください。`;
   if (!mine) {
     if (state.phase === 'portChoice') return `${cp?.name || 'プレイヤー'} が港効果を使うか選んでいます。`;
@@ -787,7 +818,7 @@ function renderStatus() {
   if (state.status === 'finished') {
     const winner = state.players.find(p => p.id === state.winnerId);
     $('statusTitle').textContent = 'ゲーム終了';
-    $('statusText').textContent = '同じメンバーで再戦するか、新しい部屋を作成できます。';
+    $('statusText').textContent = state.hostId === myId ? '再戦するデッキを選ぶか、新しい部屋を作成できます。' : 'ホストが再戦するデッキを選択できます。';
     if (victoryBanner) {
       victoryBanner.classList.remove('hidden');
       victoryBanner.innerHTML = `<div class="winner-crown">🏆</div><div><strong>${escapeHtml(winner?.name || '不明')} の勝利！</strong><span>すべてのランドマークを完成させました</span></div>`;
@@ -1384,9 +1415,9 @@ function renderActions() {
   }
   if (state.status === 'finished') {
     const hostActions = state.hostId === myId
-      ? '<button onclick="emitWithMessage(\'resetRoom\')">同じメンバーでもう一度遊ぶ</button>'
-      : '<span class="small">同じメンバーの再戦はホストが開始できます。</span>';
-    el.innerHTML = `${resultTableHtml()}${diceStatsHtml()}<div class="actions wrap">${hostActions}<button class="accent" onclick="createFreshRoom()">新しい部屋を作る</button><button class="secondary" onclick="backToLobbyForNewRoom()">ロビーに戻る</button></div>`;
+      ? `${rematchDeckOptionsHtml()}<div class="actions wrap rematch-actions"><button onclick="resetRoomWithSelectedDeck()">選んだデッキで再戦準備</button></div>`
+      : '<div class="rematch-waiting"><strong>ホストが再戦用のデッキを選択中です</strong><span>選択後、同じメンバーの待機画面に戻ります。</span></div>';
+    el.innerHTML = `${resultTableHtml()}${diceStatsHtml()}${hostActions}<div class="actions wrap"><button class="accent" onclick="createFreshRoom()">新しい部屋を作る</button><button class="secondary" onclick="backToLobbyForNewRoom()">ロビーに戻る</button></div>`;
     return;
   }
   if (state.rolling) {

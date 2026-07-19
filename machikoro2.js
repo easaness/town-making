@@ -27,7 +27,7 @@ const CARD_DEFS = {
 const LANDMARK_DEFS = {
   mk2_lm_publisher: { name: '出版社', costs: [10, 14, 22], text: '建設時：他の全員から、その人の商店マーク1件につき1コイン。', timing: 'immediate' },
   mk2_lm_airport: { name: '空港', costs: [12, 16, 22], text: '全員：建設しないで手番を終えた人は、銀行から5コイン。', timing: 'ongoing', global: true },
-  mk2_lm_museum: { name: '博物館', costs: [12, 16, 22], text: '建設時：他の全員から、その人のランドマーク1件につき3コイン。', timing: 'immediate' },
+  mk2_lm_museum: { name: '博物館', costs: [10, 14, 22], text: '建設時：他の全員から、その人のランドマーク1件につき3コイン。', timing: 'immediate' },
   mk2_lm_exhibitHall: { name: '展示場', costs: [12, 16, 22], text: '建設時：11コイン以上持つ他の全員から、所持金の半分（端数切捨て）をもらう。', timing: 'immediate' },
   mk2_lm_temple: { name: '神殿', costs: [12, 16, 22], text: '全員：ぞろ目を出した人は、他の全員から2コインずつ。', timing: 'ongoing', global: true },
   mk2_lm_tvStation: { name: 'テレビ局', costs: [12, 16, 22], text: '建設時：他の全員から、その人の飲食店マーク1件につき1コイン。', timing: 'immediate' },
@@ -44,7 +44,7 @@ const LANDMARK_DEFS = {
   mk2_lm_forge: { name: '鍛冶工場', costs: [12, 16, 22], text: '全員：歯車マーク施設の収入が1件につき+1。', timing: 'ongoing', global: true },
   mk2_lm_farmersMarket: { name: 'ファーマーズマーケット', costs: [10, 14, 22], text: '全員：農産物マーク施設の収入が1件につき+1。', timing: 'ongoing', global: true },
   mk2_lm_movingCompany: { name: '引っ越し屋', costs: [10, 14, 22], text: '全員：ぞろ目を出した人は、全効果解決後、自分の施設1件を右隣へ渡す。', timing: 'ongoing', global: true },
-  mk2_lm_observatory: { name: '天文台', costs: [10, 14, 22], text: '全員：ロケット基地の建設価格-5。', timing: 'ongoing', global: true }
+  mk2_lm_observatory: { name: '天文台', costs: [12, 16, 22], text: '全員：ロケット基地の建設価格-5。', timing: 'ongoing', global: true }
 };
 
 function shuffle(items) {

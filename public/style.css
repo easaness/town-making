@@ -3182,3 +3182,16 @@ button:disabled {
     min-width: min(82vw, 250px);
   }
 }
+
+/* 街コロ通：市場の行順を固定
+   1行目 ランドマーク / 2行目 1〜6 / 3行目 7〜12 */
+.two-market-stack {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.two-market-stack > .two-market-row {
+  display: block;
+  width: 100%;
+}

@@ -1702,12 +1702,14 @@ function renderTwoBuilds() {
       return `<article class="card ${card.color}"><h4>${card.name}<span>${card.cost}🪙</span></h4><div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div><p>${cardDescription(id,card)}</p><p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p><button ${reason ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${reason || '建設'}</button></article>`;
     }).join('')}</div></div>`;
   };
+  $('cards').className = 'two-market-stack';
   $('cards').innerHTML = rowHtml('low','1〜6の施設市場') + rowHtml('high','7〜12の施設市場');
 }
 
 function renderBuilds() {
   if (isTwoDeck()) return renderTwoBuilds();
   $('landmarks').className = 'cards';
+  $('cards').className = 'cards';
   const canBuild = state.status === 'playing' && state.phase === 'build' && isMyTurn();
   const m = me();
   $('landmarks').innerHTML = Object.entries(state.landmarks).map(([id, lm]) => {

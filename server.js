@@ -4,6 +4,7 @@ const { Server } = require('socket.io');
 const { randomUUID } = require('crypto');
 const fs = require('fs');
 const path = require('path');
+const machikoro2 = require('./machikoro2');
 
 const app = express();
 const server = http.createServer(app);
@@ -79,14 +80,18 @@ const OFFICE_DISPLAY = {
 
 const LANDMARKS = { ...BASE_LANDMARKS, ...PLUS_LANDMARKS };
 
-const DECK_MODE_LABELS = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り' };
+const DECK_MODE_LABELS = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り', two: '街コロ通' };
 
 function normalizeDeckMode(mode) {
-  return ['base', 'plus', 'sharp', 'all'].includes(mode) ? mode : 'base';
+  return ['base', 'plus', 'sharp', 'all', 'two'].includes(mode) ? mode : 'base';
 }
 
 function deckModeLabel(mode) {
   return DECK_MODE_LABELS[normalizeDeckMode(mode)];
+}
+
+function isTwoMode(roomOrMode) {
+  return normalizeDeckMode(typeof roomOrMode === 'string' ? roomOrMode : roomOrMode?.deckMode) === 'two';
 }
 
 function isPlusMode(roomOrMode) {
@@ -219,7 +224,7 @@ function normalizeLoadedRoom(room) {
         player.ventureCards.push({ id: randomUUID(), tokens: 0, closed: false });
       }
     }
-    player.landmarks = { ...initialLandmarks(room.deckMode), ...(player.landmarks || {}) };
+    if (!isTwoMode(room)) player.landmarks = { ...initialLandmarks(room.deckMode), ...(player.landmarks || {}) };
   });
   room.coinEvents = Array.isArray(room.coinEvents) ? room.coinEvents : [];
   room.specialEvents = Array.isArray(room.specialEvents) ? room.specialEvents : [];
@@ -231,6 +236,7 @@ function normalizeLoadedRoom(room) {
   room.market = room.market || {};
   room.eventSeq = Number(room.eventSeq || 0);
   room.spectators = Array.isArray(room.spectators) ? room.spectators.map(sp => ({ ...sp, socketId: null, connected: false })) : [];
+  if (isTwoMode(room)) machikoro2.normalizeRoom(room);
   room.lastUpdatedAt = room.lastUpdatedAt || Date.now();
   return room;
 }
@@ -318,7 +324,7 @@ function fillMarket(room) {
 }
 
 function makePlayer(playerId, name, socketId, deckMode = 'base') {
-  return {
+  const player = {
     id: playerId,
     socketId,
     name: (name || 'ゲスト').slice(0, 18),
@@ -329,10 +335,13 @@ function makePlayer(playerId, name, socketId, deckMode = 'base') {
     landmarks: initialLandmarks(deckMode),
     connected: true
   };
+  if (isTwoMode(deckMode)) machikoro2.resetPlayer(player);
+  return player;
 }
 
 
 function resetPlayerForNewGame(player, deckMode = 'base') {
+  if (isTwoMode(deckMode)) { machikoro2.resetPlayer(player); return; }
   player.coins = 3;
   player.cards = { wheat: 1, bakery: 1 };
   player.closedCards = {};
@@ -365,10 +374,15 @@ function resetRoomToWaiting(room) {
   room.turnCoinStart = null;
   room.turnCoinEnd = null;
   room.diceStats = createDiceStats();
+  room.twoSupply = null;
+  room.twoSetup = null;
+  room.pendingTwoChoice = null;
+  room.twoTurnIncome = {};
 }
 
 
 function publicRoom(room) {
+  const twoPublic = isTwoMode(room) ? machikoro2.publicState(room) : null;
   return {
     code: room.code,
     hostId: room.hostId,
@@ -378,8 +392,11 @@ function publicRoom(room) {
     deckMode: room.deckMode || 'base',
     players: room.players.map(({ socketId, ...player }) => player),
     currentPlayerIndex: room.currentPlayerIndex,
-    market: room.market,
-    deckCount: room.deck?.length || 0,
+    market: twoPublic?.market ?? room.market,
+    deckCount: twoPublic?.deckCount ?? (room.deck?.length || 0),
+    twoSupply: twoPublic?.twoSupply || null,
+    twoSetup: twoPublic?.twoSetup || null,
+    pendingTwoChoice: twoPublic?.pendingTwoChoice || null,
     phase: room.phase,
     lastRoll: room.lastRoll,
     pendingRoll: room.pendingRoll,
@@ -399,8 +416,8 @@ function publicRoom(room) {
     turnCoinStart: room.turnCoinStart || null,
     turnCoinEnd: room.turnCoinEnd || null,
     diceStats: normalizeDiceStats(room.diceStats),
-    cards: getCardDefs(room),
-    landmarks: getLandmarkDefs(room, true),
+    cards: twoPublic?.cards || getCardDefs(room),
+    landmarks: twoPublic?.landmarks || getLandmarkDefs(room, true),
     lastUpdatedAt: room.lastUpdatedAt || Date.now()
   };
 }
@@ -455,6 +472,10 @@ function beginTurnMoneySummary(room) {
 function finalizeTurnMoneySummary(room) {
   if (!room.turnCoinStart) room.turnCoinStart = snapshotCoins(room);
   room.turnCoinEnd = snapshotCoins(room);
+}
+
+function twoHelpers() {
+  return { log, specialEvent, coinEvent, beginTurnMoneySummary, finalizeTurnMoneySummary, recordNormalDiceStats };
 }
 
 function coinEvent(room, player, amount, type, label) {
@@ -1230,7 +1251,7 @@ io.on('connection', (socket) => {
       emitRoom(room);
       return;
     }
-    if (room.players.length >= 4) return cb?.({ ok: false, message: 'このルームは満員です。' });
+    if (room.players.length >= (isTwoMode(room) ? 5 : 4)) return cb?.({ ok: false, message: 'このルームは満員です。' });
     const newPlayerId = randomUUID();
     const player = makePlayer(newPlayerId, name, socket.id, room.deckMode);
     room.players.push(player);
@@ -1247,6 +1268,14 @@ io.on('connection', (socket) => {
     if (!room) return;
     if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ開始できます。' });
     if (room.players.length < 1) return cb?.({ ok: false, message: '1人以上で開始してください。' });
+    if (isTwoMode(room) && room.players.length < 2) return cb?.({ ok: false, message: '街コロ通は2〜5人で開始してください。' });
+    if (isTwoMode(room)) {
+      machikoro2.startGame(room, twoHelpers());
+      room.diceStats = createDiceStats();
+      cb?.({ ok: true });
+      emitRoom(room);
+      return;
+    }
     // 毎ゲーム開始時にプレイヤー順をシャッフルし、先手もランダムにする。
     room.players = shuffle(room.players);
     room.deck = makeDeck(room.deckMode);
@@ -1282,7 +1311,7 @@ io.on('connection', (socket) => {
     if (room.rolling) return cb?.({ ok: false, message: 'ダイス処理中です。' });
     const player = getCurrentPlayer(room);
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
-    const countDice = Number(diceCount) === 2 && has(player, 'station') ? 2 : 1;
+    const countDice = Number(diceCount) === 2 && (isTwoMode(room) || has(player, 'station')) ? 2 : 1;
     room.rolling = { playerId: player.id, playerName: player.name, diceCount: countDice, mode: 'roll', nonce: Date.now() };
     cb?.({ ok: true });
     emitRoom(room);
@@ -1294,7 +1323,9 @@ io.on('connection', (socket) => {
       if (!currentPlayer || currentPlayer.id !== player.id) return;
       const dice = Array.from({ length: countDice }, () => 1 + Math.floor(Math.random() * 6));
       currentRoom.rolling = null;
-      if (has(currentPlayer, 'tower')) {
+      if (isTwoMode(currentRoom)) {
+        machikoro2.resolveRoll(currentRoom, dice, twoHelpers());
+      } else if (has(currentPlayer, 'tower')) {
         currentRoom.pendingRoll = { dice, diceCount: countDice, playerId: currentPlayer.id, playerName: currentPlayer.name, total: dice.reduce((a, b) => a + b, 0), rawTotal: dice.reduce((a, b) => a + b, 0) };
         currentRoom.phase = 'reroll';
         currentRoom.canReroll = true;
@@ -1510,6 +1541,36 @@ io.on('connection', (socket) => {
     emitRoom(room);
   });
 
+  socket.on('twoBusiness', ({ myCardId, targetId, targetCardId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || !isTwoMode(room) || room.status !== 'playing' || room.phase !== 'twoBusiness') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const result = machikoro2.finishBusiness(room, { myCardId, targetId, targetCardId }, twoHelpers());
+    cb?.(result);
+    emitRoom(room);
+  });
+
+  socket.on('skipTwoBusiness', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || !isTwoMode(room) || room.status !== 'playing' || room.phase !== 'twoBusiness') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const result = machikoro2.skipBusiness(room, twoHelpers());
+    cb?.(result);
+    emitRoom(room);
+  });
+
+  socket.on('twoGiveEstablishment', ({ cardId }, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || !isTwoMode(room) || room.status !== 'playing' || room.phase !== 'twoMoving') return;
+    const player = getCurrentPlayer(room);
+    if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+    const result = machikoro2.giveMovingCard(room, cardId, twoHelpers());
+    cb?.(result);
+    emitRoom(room);
+  });
+
   socket.on('purpleTv', ({ targetId }, cb) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'purple' || room.pendingPurple?.current !== 'tv') return;
@@ -1572,7 +1633,17 @@ io.on('connection', (socket) => {
 
   socket.on('buildCard', ({ cardId }, cb) => {
     const room = rooms.get(socket.data.roomCode);
-    if (!room || room.status !== 'playing' || room.phase !== 'build') return;
+    if (!room || room.status !== 'playing') return;
+    if (isTwoMode(room)) {
+      if (!['initialBuild', 'build'].includes(room.phase)) return;
+      const player = getCurrentPlayer(room);
+      if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+      const result = machikoro2.buildCard(room, cardId, twoHelpers());
+      cb?.(result);
+      emitRoom(room);
+      return;
+    }
+    if (room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const card = getCardDefs(room)[cardId];
@@ -1615,6 +1686,13 @@ io.on('connection', (socket) => {
     const room = rooms.get(socket.data.roomCode);
     if (!room || room.status !== 'playing' || room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
+    if (isTwoMode(room)) {
+      if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+      const result = machikoro2.buildLandmark(room, landmarkId, twoHelpers());
+      cb?.(result);
+      emitRoom(room);
+      return;
+    }
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     const landmark = getLandmarkDefs(room, false)[landmarkId];
     if (!landmark) return cb?.({ ok: false, message: 'ランドマークがありません。' });
@@ -1631,7 +1709,17 @@ io.on('connection', (socket) => {
 
   socket.on('skipBuild', (_payload, cb) => {
     const room = rooms.get(socket.data.roomCode);
-    if (!room || room.status !== 'playing' || room.phase !== 'build') return;
+    if (!room || room.status !== 'playing') return;
+    if (isTwoMode(room)) {
+      if (!['initialBuild', 'build'].includes(room.phase)) return;
+      const player = getCurrentPlayer(room);
+      if (!player || player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
+      const result = machikoro2.skipBuild(room, twoHelpers());
+      cb?.(result);
+      emitRoom(room);
+      return;
+    }
+    if (room.phase !== 'build') return;
     const player = getCurrentPlayer(room);
     if (player.id !== socket.data.playerId) return cb?.({ ok: false, message: 'あなたの手番ではありません。' });
     if (isPlusMode(room) && has(player, 'airport')) {
@@ -1665,6 +1753,13 @@ io.on('connection', (socket) => {
     if (!room || room.status !== 'playing') return cb?.({ ok: false, message: '進行中のゲームがありません。' });
     if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみ強制スキップできます。' });
     const skipped = getCurrentPlayer(room);
+    if (isTwoMode(room)) {
+      machikoro2.forceSkip(room, twoHelpers());
+      specialEvent(room, 'host-skip', skipped || null, `${skipped?.name || 'プレイヤー'} の手番をホストがスキップしました。`);
+      cb?.({ ok: true });
+      emitRoom(room);
+      return;
+    }
     room.rolling = null;
     room.pendingRoll = null;
     room.pendingPurple = null;

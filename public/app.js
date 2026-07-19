@@ -22,7 +22,7 @@ let masterVolume = Number(localStorage.getItem('machikoroVolume') || 70) / 100;
 
 const $ = (id) => document.getElementById(id);
 const colorText = { blue: '青', green: '緑', red: '赤', purple: '紫' };
-const deckModeText = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り' };
+const deckModeText = { base: '街コロ', plus: '街コロ＋', sharp: '街コロ#', all: '全部入り', two: '街コロ通' };
 function deckLabel(mode) { return deckModeText[mode] || deckModeText.base; }
 
 function rematchDeckOptionsHtml() {
@@ -30,7 +30,8 @@ function rematchDeckOptionsHtml() {
     { value: 'base', icon: '🏙️', title: '街コロ', note: '基本' },
     { value: 'plus', icon: '⚓', title: '街コロ＋', note: '拡張' },
     { value: 'sharp', icon: '#', title: '街コロ#', note: '休業' },
-    { value: 'all', icon: '✨', title: '全部入り', note: '全拡張' }
+    { value: 'all', icon: '✨', title: '全部入り', note: '全拡張' },
+    { value: 'two', icon: '🆕', title: '街コロ通', note: '独立ルール' }
   ];
   const current = state?.deckMode || 'base';
   return `
@@ -51,6 +52,7 @@ function rematchDeckOptionsHtml() {
     </div>`;
 }
 function isSharpDeck() { return state?.deckMode === 'sharp' || state?.deckMode === 'all'; }
+function isTwoDeck() { return state?.deckMode === 'two'; }
 
 const initialRoomFromUrl = new URLSearchParams(location.search).get('room');
 if (initialRoomFromUrl) {
@@ -458,7 +460,8 @@ function updateDeckModeHelp() {
     base: '<strong>街コロ：</strong>基本カードのみ。通常プレイを壊さず、今まで通り遊べます。',
     plus: '<strong>街コロ＋：</strong>基本カードに拡張カードを混ぜて遊びます。',
     sharp: '<strong>街コロ#：</strong>基本カードに街コロ#カードを混ぜ、休業ルールを使います。',
-    all: '<strong>全部入り：</strong>街コロ＋と街コロ#をどちらも混ぜて遊びます。'
+    all: '<strong>全部入り：</strong>街コロ＋と街コロ#をどちらも混ぜて遊びます。',
+    two: '<strong>街コロ通：</strong>3列市場・初期建設・共通ランドマークを使う独立ルールです。無印とは混ぜません。'
   };
   help.innerHTML = map[mode] || map.base;
 }
@@ -566,10 +569,13 @@ function phaseGuideText() {
     if (state.phase === 'sharpChoice') return `${cp?.name || 'プレイヤー'} が街コロ#カードの対象を選んでいます。`;
     if (state.phase === 'purple') return `${cp?.name || 'プレイヤー'} が紫カードの対象を選んでいます。`;
     if (state.phase === 'ventureInvest') return `${cp?.name || 'プレイヤー'} がベンチャー企業への投資を選んでいます。`;
+    if (state.phase === 'initialBuild') return `${cp?.name || 'プレイヤー'} が初期建設（${state.twoSetup?.round || 1}/3周目）を選んでいます。`;
+    if (state.phase === 'twoBusiness') return `${cp?.name || 'プレイヤー'} がトレードセンターの交換を選んでいます。`;
+    if (state.phase === 'twoMoving') return `${cp?.name || 'プレイヤー'} が引っ越し屋で渡す施設を選んでいます。`;
     if (state.phase === 'build') return `${cp?.name || 'プレイヤー'} が建設するか選んでいます。`;
     return `${cp?.name || 'プレイヤー'} の操作待ちです。`;
   }
-  if (state.phase === 'roll') return 'ダイスを振ってください。駅が完成していれば2個も選べます。';
+  if (state.phase === 'roll') return isTwoDeck() ? 'ダイスを1個または2個振ってください。' : 'ダイスを振ってください。駅が完成していれば2個も選べます。';
   if (state.phase === 'reroll') return '電波塔で振り直すか、この出目で進めるか選んでください。';
   if (state.phase === 'portChoice') return '港効果で出目に+2するか選んでください。';
   if (state.phase === 'tunaRoll') {
@@ -579,14 +585,17 @@ function phaseGuideText() {
   if (state.phase === 'sharpChoice') return '街コロ#カードの対象を選んでください。';
   if (state.phase === 'purple') return '紫カードの対象を選んでください。';
   if (state.phase === 'ventureInvest') return 'ベンチャー企業に1コイン投資するか選んでください。';
-  if (state.phase === 'build') return '施設を1つ建設するか、建設せず終了してください。';
+  if (state.phase === 'initialBuild') return `初期建設 ${state.twoSetup?.round || 1}/3周目：施設を1件建設するか、パスしてください。`;
+  if (state.phase === 'twoBusiness') return 'トレードセンターで交換するか、使わずに進めてください。';
+  if (state.phase === 'twoMoving') return '引っ越し屋で右隣へ渡す施設を1件選んでください。';
+  if (state.phase === 'build') return '施設またはランドマークを1つ建設するか、建設せず終了してください。';
   return '';
 }
 
 function isTriggeredCard(card, owner) {
   const roll = state?.lastRoll;
   if (!roll?.total || !card?.dice?.includes(roll.total)) return false;
-  if (!['build', 'purple', 'sharpChoice', 'ventureInvest'].includes(state.phase)) return false;
+  if (!['build', 'purple', 'sharpChoice', 'ventureInvest', 'twoBusiness', 'twoMoving'].includes(state.phase)) return false;
 
   // Actual activation rules by card color:
   // blue: anyone's turn, red: other player's turn, green/purple: owner's turn only.
@@ -600,18 +609,22 @@ function isTriggeredCard(card, owner) {
 function buildDisableReason(card, owned, affordable, canBuild) {
   if (!canBuild) return '今は建設不可';
   if (!affordable) return 'コイン不足';
-  if (card.color === 'purple' && owned >= 1) return '所持済み';
+  if (!isTwoDeck() && card.color === 'purple' && owned >= 1) return '所持済み';
   return '';
+}
+
+function landmarkCount(player) {
+  return Array.isArray(player?.landmarks) ? player.landmarks.length : Object.values(player?.landmarks || {}).filter(Boolean).length;
 }
 
 function resultTableHtml() {
   if (!state?.players?.length) return '';
   const rows = [...state.players]
-    .sort((a, b) => Object.values(b.landmarks).filter(Boolean).length - Object.values(a.landmarks).filter(Boolean).length || b.coins - a.coins)
+    .sort((a, b) => landmarkCount(b) - landmarkCount(a) || b.coins - a.coins)
     .map((p, i) => {
-      const lm = Object.values(p.landmarks || {}).filter(Boolean).length;
+      const lm = landmarkCount(p);
       const built = Object.values(p.cards || {}).reduce((a, b) => a + b, 0);
-      return `<tr><td>${i + 1}</td><td>${escapeHtml(p.name)}</td><td>${lm}/${Object.keys(state.landmarks || {}).filter(id => !state.landmarks[id].displayOnly).length}</td><td>${p.coins}🪙</td><td>${built}</td></tr>`;
+      return `<tr><td>${i + 1}</td><td>${escapeHtml(p.name)}</td><td>${lm}/${isTwoDeck() ? 3 : Object.keys(state.landmarks || {}).filter(id => !state.landmarks[id].displayOnly).length}</td><td>${p.coins}🪙</td><td>${built}</td></tr>`;
     }).join('');
   return `<div class="result-box"><h3>リザルト</h3><table class="result-table"><thead><tr><th>#</th><th>プレイヤー</th><th>ランドマーク</th><th>コイン</th><th>施設</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
@@ -739,6 +752,7 @@ function smallCardMeta(card) {
   return `<span class="card-kind-label">${colorText[card.color]}</span>`;
 }
 function cardDescription(id, card) {
+  if (isTwoDeck() && card?.text) return card.text;
   const map = {
     wheat: '誰のターンでも銀行から1コイン。',
     ranch: '誰のターンでも銀行から1コイン。',
@@ -812,7 +826,7 @@ function renderStatus() {
   if (victoryBanner) victoryBanner.classList.add('hidden');
   if (state.status === 'waiting') {
     $('statusTitle').textContent = '待機中';
-    $('statusText').textContent = `1〜4人で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。 デッキ: ${deckLabel(state.deckMode)}`;
+    $('statusText').textContent = `${isTwoDeck() ? '2〜5人' : '1〜4人'}で開始できます。現在 ${state.players.length} 人。友人にルームコード ${state.code} を共有してください。 デッキ: ${deckLabel(state.deckMode)}`;
     return;
   }
   if (state.status === 'finished') {
@@ -821,7 +835,7 @@ function renderStatus() {
     $('statusText').textContent = state.hostId === myId ? '再戦するデッキを選ぶか、新しい部屋を作成できます。' : 'ホストが再戦するデッキを選択できます。';
     if (victoryBanner) {
       victoryBanner.classList.remove('hidden');
-      victoryBanner.innerHTML = `<div class="winner-crown">🏆</div><div><strong>${escapeHtml(winner?.name || '不明')} の勝利！</strong><span>すべてのランドマークを完成させました</span></div>`;
+      victoryBanner.innerHTML = `<div class="winner-crown">🏆</div><div><strong>${escapeHtml(winner?.name || '不明')} の勝利！</strong><span>${isTwoDeck() ? '3件目のランドマークを建設しました' : 'すべてのランドマークを完成させました'}</span></div>`;
     }
     return;
   }
@@ -844,10 +858,11 @@ function renderStatus() {
       ? '<strong>🎢 遊園地発動中</strong><span>建設またはスキップ後、もう一度あなたの番です。</span>'
       : `<strong>🎢 遊園地発動中</strong><span>${escapeHtml(cp?.name || 'プレイヤー')} が建設後に追加ターンを行います。</span>`;
   }
-  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'sharpChoice' ? '街コロ#選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : state.phase === 'ventureInvest' ? 'ベンチャー企業投資' : '建設フェーズ';
+  const phaseText = state.phase === 'roll' ? 'ダイスを振るフェーズ' : state.phase === 'reroll' ? '振り直し選択フェーズ' : state.phase === 'portChoice' ? '港選択フェーズ' : state.phase === 'tunaRoll' ? 'マグロ漁船追加ダイス' : state.phase === 'sharpChoice' ? '街コロ#選択フェーズ' : state.phase === 'purple' ? '紫カード選択フェーズ' : state.phase === 'twoBusiness' ? 'トレードセンター選択' : state.phase === 'twoMoving' ? '引っ越し屋選択' : state.phase === 'initialBuild' ? `初期建設 ${state.twoSetup?.round || 1}/3` : state.phase === 'ventureInvest' ? 'ベンチャー企業投資' : '建設フェーズ';
   const rollingText = state.rolling ? ` / ${state.rolling.playerName || 'プレイヤー'} がダイス中` : '';
   const rollText = state.lastRoll ? ` / 出目 ${rollExpression(state.lastRoll)}` : '';
-  const marketText = ` / 場 ${Object.keys(state.market || {}).length} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
+  const marketKinds = isTwoDeck() ? ['low','high','landmark'].reduce((n, row) => n + Object.keys(state.twoSupply?.[row]?.market || {}).length, 0) : Object.keys(state.market || {}).length;
+  const marketText = ` / 場 ${marketKinds} 種類 / 山札 ${state.deckCount ?? 0} 枚`;
   const selfText = m ? ` / あなた: ${m.coins ?? 0} コイン` : ' / 観戦中';
   const spectatorText = state.spectatorCount ? ` / 観戦 ${state.spectatorCount} 人` : '';
   const deckText = ` / デッキ ${deckLabel(state.deckMode)}`;
@@ -1086,7 +1101,7 @@ function renderHostAdmin() {
     return;
   }
   const cp = currentPlayer();
-  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', tunaRoll: 'マグロ漁船', sharpChoice: '街コロ#選択', purple: '紫カード選択', ventureInvest: 'ベンチャー投資', build: '建設' }[state.phase] || state.phase;
+  const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', tunaRoll: 'マグロ漁船', sharpChoice: '街コロ#選択', purple: '紫カード選択', ventureInvest: 'ベンチャー投資', initialBuild: '初期建設', twoBusiness: 'トレードセンター', twoMoving: '引っ越し屋', build: '建設' }[state.phase] || state.phase;
   body.innerHTML = `
     <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
     <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
@@ -1142,14 +1157,14 @@ function stickyHudActionHtml() {
     return `<span class="hud-wait">${escapeHtml(cp?.name || '相手')} の番</span>`;
   }
   if (state.phase === 'roll') {
-    const canTwo = mine.landmarks.station;
+    const canTwo = isTwoDeck() || mine.landmarks.station;
     return `<button onclick="rollDice(1)">1個振る</button><button ${canTwo ? '' : 'disabled'} onclick="rollDice(2)">2個振る</button>`;
   }
   if (state.phase === 'reroll') {
     return `<button onclick="emitWithMessage('acceptRoll')">この出目で進める</button><button class="secondary" onclick="rerollDice()">振り直す</button>`;
   }
-  if (state.phase === 'build') {
-    return `<button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>`;
+  if (state.phase === 'build' || state.phase === 'initialBuild') {
+    return `<button class="secondary" onclick="emitWithMessage('skipBuild')">${state.phase === 'initialBuild' ? 'この周はパス' : '建設せず終了'}</button>`;
   }
   if (state.phase === 'portChoice') {
     return `<button onclick="emitWithMessage('usePortRoll')">港+2</button><button class="secondary" onclick="emitWithMessage('acceptPortRoll')">そのまま</button>`;
@@ -1159,6 +1174,9 @@ function stickyHudActionHtml() {
     if (state.pendingTuna?.rollerId === myId) return `<button onclick="rollTunaDice()">追加ダイスを振る</button>`;
     return `<span class="hud-wait">${escapeHtml(state.pendingTuna?.rollerName || '相手')} の追加ダイス待ち</span>`;
   }
+
+  if (state.phase === 'twoBusiness') return '<span class="hud-wait">トレードセンターを選択中</span>';
+  if (state.phase === 'twoMoving') return '<span class="hud-wait">引っ越し屋を選択中</span>';
 
   if (state.phase === 'sharpChoice') {
     return '<span class="hud-wait">街コロ#カードを選択中</span>';
@@ -1240,8 +1258,11 @@ function renderPlayers() {
           <div class="owned-card-effect">${cardDescription(id, card)}</div>
         </div>`;
       }).join('') || '<div class="small empty-owned">建築済み施設はまだありません。</div>';
-    const officeTag = state.landmarks?.office ? `<span class="tag landmark-tag complete" title="${escapeHtml(state.landmarks.office.text)}">常時 ${state.landmarks.office.name}</span>` : '';
-    const landmarks = officeTag + Object.entries(p.landmarks)
+    const officeTag = !isTwoDeck() && state.landmarks?.office ? `<span class="tag landmark-tag complete" title="${escapeHtml(state.landmarks.office.text)}">常時 ${state.landmarks.office.name}</span>` : '';
+    const landmarkEntries = isTwoDeck()
+      ? (p.landmarks || []).map(id => [id, true])
+      : Object.entries(p.landmarks || {});
+    const landmarks = officeTag + landmarkEntries
       .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id]?.text || '')}">${done ? '✅' : '⬜'} ${state.landmarks[id]?.name || id}</span>`).join('');
     const playerClasses = ['player', idx === state.currentPlayerIndex ? 'current' : '', p.id === myId ? 'me-player' : ''].filter(Boolean).join(' ');
     const turnLabel = idx === state.currentPlayerIndex ? `<div class="turn-chip ${p.id === myId ? 'mine' : ''}">${p.id === myId ? 'あなたの番' : '現在の番'}</div>` : '';
@@ -1358,6 +1379,50 @@ function sharpChoiceHtml(effect) {
     return `<div class="choice-panel"><h3>引っ越し屋：渡す施設と相手を選択</h3><label>渡す施設<select id="sharpMovingCard">${movingCardOptions(m)}</select></label><label>相手<select id="sharpMovingTarget">${targets.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select></label><div class="actions"><button onclick="submitSharpMoving()">渡して4コイン</button></div></div>`;
   }
   return '<p>街コロ#カードの選択待ちです。</p>';
+}
+
+function allOwnedOptions(player) {
+  if (!player) return '';
+  return Object.entries(player.cards || {})
+    .filter(([id, n]) => n > 0 && state.cards[id])
+    .sort(([a], [b]) => state.cards[a].name.localeCompare(state.cards[b].name, 'ja'))
+    .map(([id, n]) => `<option value="${id}">${escapeHtml(state.cards[id].name)}×${n}</option>`)
+    .join('');
+}
+
+function twoBusinessChoiceHtml() {
+  const mine = me();
+  const targets = state.players.filter(p => p.id !== myId && Object.values(p.cards || {}).some(n => n > 0));
+  const firstTarget = targets[0];
+  if (!mine || !allOwnedOptions(mine) || !firstTarget) {
+    return `<div class="choice-panel"><h3>トレードセンター</h3><p>交換できる施設がありません。</p><button class="secondary" onclick="emitWithMessage('skipTwoBusiness')">進む</button></div>`;
+  }
+  return `<div class="choice-panel">
+    <h3>トレードセンター：施設を1件ずつ交換</h3>
+    <p class="small">街コロ通では紫施設やトレードセンター自身も交換できます。</p>
+    <label>自分の施設<select id="twoBusinessMyCard">${allOwnedOptions(mine)}</select></label>
+    <label>相手<select id="twoBusinessTarget" onchange="updateTwoBusinessTargetCards()">${targets.map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}</select></label>
+    <label>相手の施設<select id="twoBusinessTargetCard">${allOwnedOptions(firstTarget)}</select></label>
+    <div class="actions"><button onclick="submitTwoBusiness()">交換する</button><button class="secondary" onclick="emitWithMessage('skipTwoBusiness')">使わない</button></div>
+  </div>`;
+}
+
+function updateTwoBusinessTargetCards() {
+  const target = state.players.find(p => p.id === $('twoBusinessTarget')?.value);
+  if ($('twoBusinessTargetCard')) $('twoBusinessTargetCard').innerHTML = allOwnedOptions(target);
+}
+
+function submitTwoBusiness() {
+  emitWithMessage('twoBusiness', {
+    myCardId: $('twoBusinessMyCard')?.value,
+    targetId: $('twoBusinessTarget')?.value,
+    targetCardId: $('twoBusinessTargetCard')?.value
+  });
+}
+
+function twoMovingChoiceHtml() {
+  const targetName = state.pendingTwoChoice?.targetName || '右隣のプレイヤー';
+  return `<div class="choice-panel"><h3>引っ越し屋：施設を右隣へ渡す</h3><p>${escapeHtml(targetName)}へ渡す施設を1件選んでください。</p><label>渡す施設<select id="twoMovingCard">${allOwnedOptions(me())}</select></label><div class="actions"><button onclick="emitWithMessage('twoGiveEstablishment', { cardId: $('twoMovingCard')?.value })">渡して進む</button></div></div>`;
 }
 
 function businessChoiceHtml() {
@@ -1478,6 +1543,19 @@ function renderActions() {
     return;
   }
 
+  if (state.phase === 'twoBusiness') {
+    if (!me()) { el.innerHTML = `<p>観戦中です。${escapeHtml(currentPlayer()?.name || 'プレイヤー')} が交換を選んでいます。</p>`; return; }
+    if (!isMyTurn()) { el.innerHTML = `<p>${escapeHtml(currentPlayer()?.name || 'プレイヤー')} がトレードセンターを処理しています。</p>${hostControlHtml()}`; return; }
+    el.innerHTML = twoBusinessChoiceHtml() + hostControlHtml();
+    return;
+  }
+  if (state.phase === 'twoMoving') {
+    if (!me()) { el.innerHTML = `<p>観戦中です。${escapeHtml(currentPlayer()?.name || 'プレイヤー')} が渡す施設を選んでいます。</p>`; return; }
+    if (!isMyTurn()) { el.innerHTML = `<p>${escapeHtml(currentPlayer()?.name || 'プレイヤー')} が引っ越し屋を処理しています。</p>${hostControlHtml()}`; return; }
+    el.innerHTML = twoMovingChoiceHtml() + hostControlHtml();
+    return;
+  }
+
   if (state.phase === 'sharpChoice') {
     const effect = state.pendingSharp?.current;
     if (!me()) {
@@ -1547,7 +1625,7 @@ function renderActions() {
   }
   const m = me();
   if (state.phase === 'roll') {
-    const canTwo = m.landmarks.station;
+    const canTwo = isTwoDeck() || m.landmarks.station;
     if (localRollingCount) {
       const previewDice = rollingPreviewValues.map((value, i) => diceFace(value, `rolling-loop d${i + 1}`, `data-rolling-die="${i}" data-roll-key="${rollingNonce}"`)).join('');
       el.innerHTML = `
@@ -1559,7 +1637,7 @@ function renderActions() {
       <p>振るダイスを選んでください。</p>
       <div class="actions">
         <button onclick="rollDice(1)">1個振る</button>
-        <button ${canTwo ? '' : 'disabled'} onclick="rollDice(2)">2個振る（駅）</button>
+        <button ${canTwo ? '' : 'disabled'} onclick="rollDice(2)">${isTwoDeck() ? '2個振る' : '2個振る（駅）'}</button>
       </div>${hostControlHtml()}`;
     return;
   }
@@ -1583,13 +1661,51 @@ function renderActions() {
   const dice = diceTray(state.lastRoll, '今回の出目');
   el.innerHTML = `
     ${dice}
-    <p>1件だけ建設するか、建設せずに終了できます。</p>
+    <p>${state.phase === 'initialBuild' ? `初期建設 ${state.twoSetup?.round || 1}/3周目：施設を1件建設するか、パスできます。` : '1件だけ建設するか、建設せずに終了できます。'}</p>
     <div class="actions">
-      <button class="secondary" onclick="emitWithMessage('skipBuild')">建設せず終了</button>
+      <button class="secondary" onclick="emitWithMessage('skipBuild')">${state.phase === 'initialBuild' ? 'この周はパス' : '建設せず終了'}</button>
     </div>${hostControlHtml()}`;
 }
 
+function twoLandmarkCost(lm, id, player) {
+  const index = (player?.landmarks || []).length;
+  let cost = lm?.costs?.[index];
+  if (cost === null || cost === undefined) return null;
+  if ((player?.landmarks || []).includes('mk2_lm_loanOffice')) cost -= 2;
+  const observatoryActive = state.players.some(p => (p.landmarks || []).includes('mk2_lm_observatory'));
+  if (id === 'mk2_lm_launchPad' && observatoryActive) cost -= 5;
+  return Math.max(0, cost);
+}
+
+function renderTwoBuilds() {
+  const canBuildCard = state.status === 'playing' && ['initialBuild', 'build'].includes(state.phase) && isMyTurn();
+  const canBuildLandmark = state.status === 'playing' && state.phase === 'build' && isMyTurn();
+  const m = me();
+  const landmarkMarket = state.twoSupply?.landmark?.market || {};
+  $('landmarks').innerHTML = Object.entries(landmarkMarket).filter(([, pile]) => pile > 0).map(([id, pile]) => {
+    const lm = state.landmarks[id];
+    const cost = twoLandmarkCost(lm, id, m);
+    const loanEligible = id !== 'mk2_lm_loanOffice' || ((m?.landmarks || []).length === 0 && state.players.every(p => p.id === m?.id || (p.landmarks || []).length > 0));
+    const affordable = cost !== null && (m?.coins || 0) >= cost;
+    const disabled = !canBuildLandmark || !affordable || !loanEligible;
+    const prices = (lm.costs || []).map(v => v === null ? '—' : `${v}`).join(' / ');
+    const button = !loanEligible ? '条件未達' : cost === null ? '建設不可' : affordable ? `建設 ${cost}🪙` : `コイン不足 ${cost}🪙`;
+    return `<article class="card landmark-card incomplete"><h4>${lm.name}<span>${cost === null ? '—' : cost + '🪙'}</span></h4><p>${lm.text}</p><p class="small">価格（1件目/2件目/3件目） ${prices} / 市場 ${pile}枚</p><button ${disabled ? 'disabled' : ''} onclick="emitWithMessage('buildLandmark', { landmarkId: '${id}' })">${button}</button></article>`;
+  }).join('') || '<p class="small">ランドマーク市場にカードがありません。</p>';
+
+  const rowHtml = (row, title) => {
+    const entries = Object.entries(state.twoSupply?.[row]?.market || {}).filter(([, pile]) => pile > 0).sort(([a],[b]) => Math.min(...state.cards[a].dice) - Math.min(...state.cards[b].dice));
+    return `<div class="two-market-row"><h3>${title}<span class="small"> 山札 ${state.twoSupply?.[row]?.deckCount || 0}枚</span></h3><div class="two-market-cards">${entries.map(([id,pile]) => {
+      const card = state.cards[id]; const owned = m?.cards?.[id] || 0; const affordable = (m?.coins || 0) >= card.cost;
+      const reason = !canBuildCard ? '今は建設不可' : !affordable ? 'コイン不足' : '';
+      return `<article class="card ${card.color}"><h4>${card.name}<span>${card.cost}🪙</span></h4><div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div><p>${cardDescription(id,card)}</p><p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p><button ${reason ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${reason || '建設'}</button></article>`;
+    }).join('')}</div></div>`;
+  };
+  $('cards').innerHTML = rowHtml('low','1〜6の施設市場') + rowHtml('high','7〜12の施設市場');
+}
+
 function renderBuilds() {
+  if (isTwoDeck()) return renderTwoBuilds();
   const canBuild = state.status === 'playing' && state.phase === 'build' && isMyTurn();
   const m = me();
   $('landmarks').innerHTML = Object.entries(state.landmarks).map(([id, lm]) => {

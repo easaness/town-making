@@ -1682,6 +1682,7 @@ function renderTwoBuilds() {
   const canBuildLandmark = state.status === 'playing' && state.phase === 'build' && isMyTurn();
   const m = me();
   const landmarkMarket = state.twoSupply?.landmark?.market || {};
+  $('landmarks').className = 'cards two-market-cards two-landmark-market';
   $('landmarks').innerHTML = Object.entries(landmarkMarket).filter(([, pile]) => pile > 0).map(([id, pile]) => {
     const lm = state.landmarks[id];
     const cost = twoLandmarkCost(lm, id, m);
@@ -1706,6 +1707,7 @@ function renderTwoBuilds() {
 
 function renderBuilds() {
   if (isTwoDeck()) return renderTwoBuilds();
+  $('landmarks').className = 'cards';
   const canBuild = state.status === 'playing' && state.phase === 'build' && isMyTurn();
   const m = me();
   $('landmarks').innerHTML = Object.entries(state.landmarks).map(([id, lm]) => {

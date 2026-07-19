@@ -3132,3 +3132,53 @@ button:disabled {
 .two-market-row { margin-bottom: 1.25rem; }
 .two-market-row > h3 { display: flex; align-items: baseline; gap: .5rem; }
 .two-market-cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(210px, 1fr)); gap: 1rem; }
+
+/* 街コロ通市場：各市場を横一列で表示する */
+.two-market-row {
+  min-width: 0;
+}
+
+.two-market-cards {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: stretch;
+  gap: 12px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding: 4px 2px 12px;
+  scroll-snap-type: x proximity;
+  scrollbar-gutter: stable;
+  -webkit-overflow-scrolling: touch;
+}
+
+.two-market-cards > .card {
+  flex: 1 0 190px;
+  min-width: 190px;
+  max-width: 260px;
+  scroll-snap-align: start;
+}
+
+.two-landmark-market {
+  margin-bottom: 18px;
+}
+
+.two-market-cards::-webkit-scrollbar {
+  height: 10px;
+}
+
+.two-market-cards::-webkit-scrollbar-thumb {
+  background: rgba(95, 82, 68, .28);
+  border-radius: 999px;
+}
+
+.two-market-cards::-webkit-scrollbar-track {
+  background: rgba(95, 82, 68, .08);
+  border-radius: 999px;
+}
+
+@media (max-width: 720px) {
+  .two-market-cards > .card {
+    flex-basis: min(82vw, 250px);
+    min-width: min(82vw, 250px);
+  }
+}

@@ -6,6 +6,7 @@ let diceJustChanged = false;
 let localRollingCount = 0;
 let rollingTimer = null;
 let hostSkipArmed = false;
+let hostEndArmed = false;
 let roomOpsArmed = false;
 let rollingPreviewValues = [];
 let rollingNonce = 0;
@@ -751,6 +752,28 @@ function diceBadges(card) {
 function smallCardMeta(card) {
   return `<span class="card-kind-label">${colorText[card.color]}</span>`;
 }
+
+const twoCategoryMarks = {
+  agriculture: { icon: '🌾', label: '農産物' },
+  food: { icon: '☕', label: '飲食店' },
+  shop: { icon: '🏪', label: '商店' },
+  gear: { icon: '⚙️', label: '歯車' },
+  flower: { icon: '🌸', label: '花' },
+  fruit: { icon: '🍎', label: '果物' },
+  major: { icon: '🏛️', label: '大施設' }
+};
+
+function categoryMarkHtml(id, card) {
+  if (!isTwoDeck() || !card) return '';
+  if (card.category === 'combo') {
+    const target = twoCategoryMarks[card.comboTarget];
+    if (!target) return '<div class="card-category-mark combo-mark"><strong>COMBO</strong></div>';
+    return `<div class="card-category-mark combo-mark" aria-label="コンボ施設。${target.label}マークを数える"><strong>COMBO</strong><span class="combo-arrow">→</span><span>${target.icon} ${target.label}</span></div>`;
+  }
+  const mark = twoCategoryMarks[card.category];
+  if (!mark) return '';
+  return `<div class="card-category-mark" aria-label="${mark.label}マーク"><span class="category-symbol">${mark.icon}</span><strong>${mark.label}</strong></div>`;
+}
 function cardDescription(id, card) {
   if (isTwoDeck() && card?.text) return card.text;
   const map = {
@@ -1097,28 +1120,47 @@ function renderHostAdmin() {
   panel.classList.toggle('hidden', !visible);
   if (!visible) {
     hostSkipArmed = false;
+    hostEndArmed = false;
     body.innerHTML = '';
     return;
   }
   const cp = currentPlayer();
   const phaseName = state.rolling ? 'ダイス演出中' : { roll: 'ダイス選択', reroll: '電波塔', portChoice: '港', tunaRoll: 'マグロ漁船', sharpChoice: '街コロ#選択', purple: '紫カード選択', ventureInvest: 'ベンチャー投資', initialBuild: '初期建設', twoBusiness: 'トレードセンター', twoMoving: '引っ越し屋', build: '建設' }[state.phase] || state.phase;
-  body.innerHTML = `
-    <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
-    <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
-    ${hostSkipArmed ? `
+  let controls = `
+    <div class="actions wrap host-admin-actions">
+      <button class="secondary danger outline-danger" onclick="armHostForceSkip()">強制スキップ</button>
+      <button class="danger" onclick="armHostForceEnd()">ゲームを強制終了</button>
+    </div>`;
+  if (hostSkipArmed) {
+    controls = `
       <div class="admin-confirm">
         <p>本当に現在の手番をスキップしますか？</p>
         <div class="actions">
           <button class="danger" onclick="confirmHostForceSkip()">スキップを実行</button>
           <button class="secondary" onclick="cancelHostForceSkip()">キャンセル</button>
         </div>
-      </div>` : `
-      <button class="secondary danger outline-danger" onclick="armHostForceSkip()">強制スキップを開く</button>`}
+      </div>`;
+  } else if (hostEndArmed) {
+    controls = `
+      <div class="admin-confirm force-end-confirm">
+        <p><strong>ゲームを強制終了しますか？</strong></p>
+        <p class="small">現在のゲーム状態を破棄し、参加者を残したまま待機画面へ戻します。</p>
+        <div class="actions">
+          <button class="danger" onclick="confirmHostForceEnd()">強制終了する</button>
+          <button class="secondary" onclick="cancelHostForceEnd()">キャンセル</button>
+        </div>
+      </div>`;
+  }
+  body.innerHTML = `
+    <p class="small">通常操作と誤って押さないよう、管理メニュー内に隔離しています。</p>
+    <div class="admin-status">現在の手番: <strong>${escapeHtml(cp?.name || 'プレイヤー')}</strong> / 状態: <strong>${escapeHtml(phaseName)}</strong></div>
+    ${controls}
   `;
 }
 
 function armHostForceSkip() {
   hostSkipArmed = true;
+  hostEndArmed = false;
   renderHostAdmin();
 }
 
@@ -1130,6 +1172,22 @@ function cancelHostForceSkip() {
 function confirmHostForceSkip() {
   hostSkipArmed = false;
   emitWithMessage('hostForceSkip');
+}
+
+function armHostForceEnd() {
+  hostEndArmed = true;
+  hostSkipArmed = false;
+  renderHostAdmin();
+}
+
+function cancelHostForceEnd() {
+  hostEndArmed = false;
+  renderHostAdmin();
+}
+
+function confirmHostForceEnd() {
+  hostEndArmed = false;
+  emitWithMessage('hostForceEnd');
 }
 
 
@@ -1251,6 +1309,7 @@ function renderPlayers() {
             <strong>${card.name}×${n}</strong>
             ${smallCardMeta(card)}
           </div>
+          ${categoryMarkHtml(id, card)}
           <div class="owned-trigger-row"><span>発動</span>${diceBadges(card)}</div>
           ${closedLine}
           ${ventureLines}
@@ -1699,7 +1758,7 @@ function renderTwoBuilds() {
     return `<div class="two-market-row"><h3>${title}<span class="small"> 山札 ${state.twoSupply?.[row]?.deckCount || 0}枚</span></h3><div class="two-market-cards">${entries.map(([id,pile]) => {
       const card = state.cards[id]; const owned = m?.cards?.[id] || 0; const affordable = (m?.coins || 0) >= card.cost;
       const reason = !canBuildCard ? '今は建設不可' : !affordable ? 'コイン不足' : '';
-      return `<article class="card ${card.color}"><h4>${card.name}<span>${card.cost}🪙</span></h4><div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div><p>${cardDescription(id,card)}</p><p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p><button ${reason ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${reason || '建設'}</button></article>`;
+      return `<article class="card ${card.color}"><h4>${card.name}<span>${card.cost}🪙</span></h4>${categoryMarkHtml(id, card)}<div class="market-trigger"><span>発動出目</span>${diceBadges(card)}</div><p>${cardDescription(id,card)}</p><p class="stock-line">場の山 ${pile}枚<span>所持 ${owned} / ${colorText[card.color]}</span></p><button ${reason ? 'disabled' : ''} onclick="emitWithMessage('buildCard', { cardId: '${id}' })">${reason || '建設'}</button></article>`;
     }).join('')}</div></div>`;
   };
   $('cards').className = 'two-market-stack';

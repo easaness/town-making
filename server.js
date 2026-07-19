@@ -359,6 +359,7 @@ function resetRoomToWaiting(room) {
   room.lastRoll = null;
   room.canReroll = true;
   room.pendingExtraTurn = false;
+  room.buildSubsidyGiven = false;
   room.pendingPurple = null;
   room.pendingSharp = null;
   room.pendingPurpleQueue = null;
@@ -1743,6 +1744,19 @@ io.on('connection', (socket) => {
     resetRoomToWaiting(room);
     log(room, `同じメンバーで再戦準備に戻しました。デッキは ${deckModeLabel(selectedDeckMode)} です。`);
     cb?.({ ok: true, deckMode: selectedDeckMode });
+    emitRoom(room);
+  });
+
+
+
+  socket.on('hostForceEnd', (_payload, cb) => {
+    const room = rooms.get(socket.data.roomCode);
+    if (!room || room.status !== 'playing') return cb?.({ ok: false, message: '進行中のゲームがありません。' });
+    if (socket.data.playerId !== room.hostId) return cb?.({ ok: false, message: 'ホストのみゲームを強制終了できます。' });
+    const host = room.players.find(player => player.id === room.hostId);
+    resetRoomToWaiting(room);
+    log(room, `${host?.name || 'ホスト'} がゲームを強制終了し、待機画面へ戻しました。`);
+    cb?.({ ok: true, message: 'ゲームを強制終了しました。' });
     emitRoom(room);
   });
 

@@ -4,7 +4,7 @@ const CARD_DEFS = {
   mk2_wheat: { name: '麦畑', dice: [1, 2], cost: 1, color: 'blue', category: 'agriculture', supplyDeck: 'low', copies: 5, text: '誰のターンでも、銀行から1コイン。' },
   mk2_sushi: { name: '寿司屋', dice: [1], cost: 2, color: 'red', category: 'food', supplyDeck: 'low', copies: 5, text: '他人のターン。出目を出した人から3コイン。' },
   mk2_business: { name: 'トレードセンター', dice: [6], cost: 3, color: 'purple', category: 'major', supplyDeck: 'low', copies: 3, text: '自分のターン。任意で、誰かと施設を1件ずつ交換する（このカード自身も選択可）。' },
-  mk2_flowerShop: { name: 'フラワーショップ', dice: [6], cost: 1, color: 'green', category: 'combo', supplyDeck: 'low', copies: 3, text: '自分のターン。自分の花マークの施設1件につき3コイン。' },
+  mk2_flowerShop: { name: 'フラワーショップ', dice: [6], cost: 1, color: 'green', category: 'combo', comboTarget: 'flower', supplyDeck: 'low', copies: 3, text: '自分のターン。自分の花マークの施設1件につき3コイン。' },
   mk2_cafe: { name: 'カフェ', dice: [3], cost: 1, color: 'red', category: 'food', supplyDeck: 'low', copies: 5, text: '他人のターン。出目を出した人から2コイン。' },
   mk2_bakery: { name: 'パン屋', dice: [2, 3], cost: 1, color: 'green', category: 'shop', supplyDeck: 'low', copies: 5, text: '自分のターン。銀行から2コイン。' },
   mk2_flower: { name: '花畑', dice: [4], cost: 2, color: 'blue', category: 'flower', supplyDeck: 'low', copies: 5, text: '誰のターンでも、銀行から2コイン。' },
@@ -13,13 +13,13 @@ const CARD_DEFS = {
   mk2_convenience: { name: 'コンビニ', dice: [4], cost: 1, color: 'green', category: 'shop', supplyDeck: 'low', copies: 5, text: '自分のターン。銀行から3コイン。' },
 
   mk2_corn: { name: 'コーン畑', dice: [7], cost: 2, color: 'blue', category: 'agriculture', supplyDeck: 'high', copies: 5, text: '誰のターンでも、銀行から3コイン。' },
-  mk2_foodWarehouse: { name: '食品倉庫', dice: [10, 11], cost: 2, color: 'green', category: 'combo', supplyDeck: 'high', copies: 3, text: '自分のターン。自分の飲食店マークの施設1件につき2コイン。' },
+  mk2_foodWarehouse: { name: '食品倉庫', dice: [10, 11], cost: 2, color: 'green', category: 'combo', comboTarget: 'food', supplyDeck: 'high', copies: 3, text: '自分のターン。自分の飲食店マークの施設1件につき2コイン。' },
   mk2_family: { name: 'ファミレス', dice: [9, 10], cost: 2, color: 'red', category: 'food', supplyDeck: 'high', copies: 5, text: '他人のターン。出目を出した人から2コイン。' },
   mk2_shoppingDistrict: { name: 'ブランドモール', dice: [8, 9], cost: 3, color: 'purple', category: 'major', supplyDeck: 'high', copies: 3, text: '自分のターン。11コイン以上持つ他の全員から、所持金の半分（端数切捨て）をもらう。' },
   mk2_hamburger: { name: 'バーガーショップ', dice: [8], cost: 1, color: 'red', category: 'food', supplyDeck: 'high', copies: 5, text: '他人のターン。出目を出した人から2コイン。' },
-  mk2_furniture: { name: '家具工場', dice: [8], cost: 4, color: 'green', category: 'combo', supplyDeck: 'high', copies: 3, text: '自分のターン。自分の歯車マークの施設1件につき4コイン。' },
+  mk2_furniture: { name: '家具工場', dice: [8], cost: 4, color: 'green', category: 'combo', comboTarget: 'gear', supplyDeck: 'high', copies: 3, text: '自分のターン。自分の歯車マークの施設1件につき4コイン。' },
   mk2_stadium: { name: 'スタジアム', dice: [7], cost: 3, color: 'purple', category: 'major', supplyDeck: 'high', copies: 3, text: '自分のターン。他の全員から3コインずつ。' },
-  mk2_winery: { name: 'ワイナリー', dice: [9], cost: 3, color: 'green', category: 'combo', supplyDeck: 'high', copies: 3, text: '自分のターン。自分の果物マークの施設1件につき3コイン。' },
+  mk2_winery: { name: 'ワイナリー', dice: [9], cost: 3, color: 'green', category: 'combo', comboTarget: 'fruit', supplyDeck: 'high', copies: 3, text: '自分のターン。自分の果物マークの施設1件につき3コイン。' },
   mk2_apple: { name: 'リンゴ園', dice: [10], cost: 1, color: 'blue', category: 'fruit', supplyDeck: 'high', copies: 5, text: '誰のターンでも、銀行から3コイン。' },
   mk2_mine: { name: '鉱山', dice: [11, 12], cost: 4, color: 'blue', category: 'gear', supplyDeck: 'high', copies: 5, text: '誰のターンでも、銀行から6コイン。' }
 };

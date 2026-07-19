@@ -828,6 +828,7 @@ function render() {
 
   renderStatus();
   renderRollNotice();
+  renderLandmarkEffects();
   renderPlayers();
   renderActions();
   renderBuilds();
@@ -1292,6 +1293,83 @@ function renderStickyHud() {
   `;
 }
 
+function landmarkEffectStatus(lm) {
+  if (!lm) return { className: 'unknown', label: '効果不明', icon: '？' };
+  if (lm.timing === 'immediate') return { className: 'resolved', label: '建設時に発動済み', icon: '✓' };
+  if (lm.global) return { className: 'global', label: '全員に発動中', icon: '🌐' };
+  if (lm.builderOnly) return { className: 'personal', label: '建設者だけに発動中', icon: '👤' };
+  return { className: 'active', label: '発動中', icon: '●' };
+}
+
+function builtTwoLandmarks() {
+  if (!isTwoDeck()) return [];
+  const rows = [];
+  for (const player of state.players || []) {
+    for (const id of player.landmarks || []) {
+      const landmark = state.landmarks?.[id];
+      if (landmark) rows.push({ id, landmark, player });
+    }
+  }
+  return rows;
+}
+
+function landmarkEffectCardHtml(entry) {
+  const status = landmarkEffectStatus(entry.landmark);
+  return `<article class="active-landmark-effect ${status.className}">
+    <div class="active-landmark-effect-head">
+      <strong>${escapeHtml(entry.landmark.name)}</strong>
+      <span class="landmark-effect-status ${status.className}">${status.icon} ${status.label}</span>
+    </div>
+    <div class="landmark-effect-owner">建設者：${escapeHtml(entry.player.name)}</div>
+    <p>${escapeHtml(entry.landmark.text || '')}</p>
+  </article>`;
+}
+
+function renderLandmarkEffects() {
+  const panel = $('landmarkEffectsPanel');
+  const body = $('landmarkEffects');
+  if (!panel || !body) return;
+
+  if (!isTwoDeck() || state.status === 'waiting') {
+    panel.classList.add('hidden');
+    body.innerHTML = '';
+    return;
+  }
+
+  panel.classList.remove('hidden');
+  const built = builtTwoLandmarks();
+  if (!built.length) {
+    body.innerHTML = '<div class="landmark-effects-empty">まだランドマークは建設されていません。</div>';
+    return;
+  }
+
+  const activeGlobal = built.filter(({ landmark }) => landmark.timing === 'ongoing' && landmark.global);
+  const activePersonal = built.filter(({ landmark }) => landmark.timing === 'ongoing' && !landmark.global);
+  const resolved = built.filter(({ landmark }) => landmark.timing === 'immediate');
+
+  const sections = [];
+  if (activeGlobal.length) {
+    sections.push(`<section class="landmark-effect-group global-group">
+      <h3>🌐 現在、全員に効いている効果 <span>${activeGlobal.length}件</span></h3>
+      <div class="active-landmark-effects-grid">${activeGlobal.map(landmarkEffectCardHtml).join('')}</div>
+    </section>`);
+  }
+  if (activePersonal.length) {
+    sections.push(`<section class="landmark-effect-group personal-group">
+      <h3>👤 建設者だけに効いている効果 <span>${activePersonal.length}件</span></h3>
+      <div class="active-landmark-effects-grid">${activePersonal.map(landmarkEffectCardHtml).join('')}</div>
+    </section>`);
+  }
+  if (resolved.length) {
+    sections.push(`<details class="landmark-effect-history">
+      <summary>✓ 建設時に発動済みの効果（${resolved.length}件）</summary>
+      <div class="active-landmark-effects-grid">${resolved.map(landmarkEffectCardHtml).join('')}</div>
+    </details>`);
+  }
+
+  body.innerHTML = sections.join('');
+}
+
 function renderPlayers() {
   $('players').innerHTML = state.players.map((p, idx) => {
     const builtCards = Object.entries(p.cards)
@@ -1322,7 +1400,12 @@ function renderPlayers() {
       ? (p.landmarks || []).map(id => [id, true])
       : Object.entries(p.landmarks || {});
     const landmarks = officeTag + landmarkEntries
-      .map(([id, done]) => `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(state.landmarks[id]?.text || '')}">${done ? '✅' : '⬜'} ${state.landmarks[id]?.name || id}</span>`).join('');
+      .map(([id, done]) => {
+        const lm = state.landmarks[id];
+        const status = isTwoDeck() && done ? landmarkEffectStatus(lm) : null;
+        const statusText = status ? ` <span class="landmark-tag-scope ${status.className}">${status.icon}</span>` : '';
+        return `<span class="tag landmark-tag ${done ? 'complete' : 'incomplete'}" title="${escapeHtml(lm?.text || '')}">${done ? '✅' : '⬜'} ${lm?.name || id}${statusText}</span>`;
+      }).join('');
     const playerClasses = ['player', idx === state.currentPlayerIndex ? 'current' : '', p.id === myId ? 'me-player' : ''].filter(Boolean).join(' ');
     const turnLabel = idx === state.currentPlayerIndex ? `<div class="turn-chip ${p.id === myId ? 'mine' : ''}">${p.id === myId ? 'あなたの番' : '現在の番'}</div>` : '';
     return `<div class="${playerClasses}">
